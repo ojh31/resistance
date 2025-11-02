@@ -18,6 +18,10 @@ app.use(express.static(path.join(__dirname, 'public')));
 var numUsers = 0;
 var players = []; // Array to track connected players: {socketId, username}
 var roleSelections = {}; // Object to track role selections: {username: role}
+var roleAssignments = {}; // Object to track actual role assignments: {username: role}
+
+// Constants
+var REVEAL_TEXT_NOTHING = 'You know nothing, good luck!';
 
 // Function to shuffle array (Fisher-Yates shuffle)
 function shuffleArray(array) {
@@ -29,8 +33,159 @@ function shuffleArray(array) {
   return shuffled;
 }
 
+// Function to check if there's only one Servant in role assignments
+function hasSingleServant(roleAssignments) {
+  let servantCount = 0;
+  Object.keys(roleAssignments).forEach(function(username) {
+    if (roleAssignments[username] === 'Servant') {
+      servantCount++;
+    }
+  });
+  return servantCount === 1;
+}
+
+// Function to replace "Servant" with "Norman" in text if there's only one Servant
+function replaceServantWithNorman(text, roleAssignments) {
+  if (hasSingleServant(roleAssignments)) {
+    return text.replace(/Servant/g, 'Norman');
+  }
+  return text;
+}
+
+// Function to get reveal information for a role
+function getRevealInfo(role, roleAssignments, playerUsername) {
+  const evilRoles = ['Minion', 'Morgana', 'Assassin', 'Mordred', 'Oberon', 'Brute'];
+  const goodRoles = ['Servant', 'Merlin', 'Percival', 'Merlin Pure', 'Tristan', 'Isolde'];
+  
+  // Build lookup maps
+  const roleToPlayers = {};
+  const playerToRole = roleAssignments;
+  
+  Object.keys(playerToRole).forEach(function(username) {
+    const roleName = playerToRole[username];
+    if (!roleToPlayers[roleName]) {
+      roleToPlayers[roleName] = [];
+    }
+    roleToPlayers[roleName].push(username);
+  });
+  
+  let revealText = '';
+  
+  switch(role) {
+    case 'Servant':
+      revealText = REVEAL_TEXT_NOTHING;
+      break;
+      
+    case 'Minion':
+    case 'Morgana':
+    case 'Assassin':
+    case 'Brute':
+    case 'Mordred':
+    case 'Oberon':
+      // Knows other minions of Mordred (evil players except self and Oberon)
+      // Note: Oberon sees others but they don't see him
+      const minions = [];
+      Object.keys(playerToRole).forEach(function(username) {
+        if (username === playerUsername) return; // Don't include self
+        const playerRole = playerToRole[username];
+        if (evilRoles.indexOf(playerRole) !== -1 && playerRole !== 'Oberon') {
+          minions.push(username);
+        }
+      });
+      if (minions.length === 0) {
+        revealText = REVEAL_TEXT_NOTHING;
+      } else {
+        revealText = 'Minions of Mordred - ' + minions.join(', ');
+      }
+      break;
+      
+    case 'Merlin':
+      // Knows minions of Mordred (evil players except Mordred)
+      const merlinSees = [];
+      Object.keys(playerToRole).forEach(function(username) {
+        const playerRole = playerToRole[username];
+        if (evilRoles.indexOf(playerRole) !== -1 && playerRole !== 'Mordred') {
+          merlinSees.push(username);
+        }
+      });
+      if (merlinSees.length === 0) {
+        revealText = REVEAL_TEXT_NOTHING;
+      } else {
+        revealText = 'Minions of Mordred - ' + merlinSees.join(', ');
+      }
+      break;
+      
+    case 'Percival':
+      // Knows Merlin and Morgana, but not which is which
+      const percivalSees = [];
+      if (roleToPlayers['Merlin']) {
+        roleToPlayers['Merlin'].forEach(function(name) {
+          percivalSees.push(name);
+        });
+      }
+      if (roleToPlayers['Morgana']) {
+        roleToPlayers['Morgana'].forEach(function(name) {
+          percivalSees.push(name);
+        });
+      }
+      if (percivalSees.length === 0) {
+        revealText = REVEAL_TEXT_NOTHING;
+      } else {
+        // Sort alphabetically to prevent revealing which is which
+        percivalSees.sort();
+        revealText = 'Merlin or Morgana - ' + percivalSees.join(', ');
+      }
+      break;
+      
+    case 'Merlin Pure':
+      // Knows exact roles of every player (except own role, which is already shown in role message)
+      const allRoles = [];
+      Object.keys(playerToRole).forEach(function(username) {
+        if (username === playerUsername) return; // Don't include own role
+        // Apply transformation to replace "Servant" with "Norman" if there's only one Servant
+        const roleName = replaceServantWithNorman(playerToRole[username], roleAssignments);
+        allRoles.push(username + ' is ' + roleName);
+      });
+      if (allRoles.length === 0) {
+        revealText = REVEAL_TEXT_NOTHING;
+      } else {
+        revealText = allRoles.join(', ');
+      }
+      break;
+      
+    case 'Tristan':
+      // Knows Isolde
+      if (roleToPlayers['Isolde'] && roleToPlayers['Isolde'].length > 0) {
+        revealText = 'Isolde - ' + roleToPlayers['Isolde'].join(', ');
+      } else {
+        revealText = REVEAL_TEXT_NOTHING;
+      }
+      break;
+      
+    case 'Isolde':
+      // Knows Tristan
+      if (roleToPlayers['Tristan'] && roleToPlayers['Tristan'].length > 0) {
+        revealText = 'Tristan - ' + roleToPlayers['Tristan'].join(', ');
+      } else {
+        revealText = REVEAL_TEXT_NOTHING;
+      }
+      break;
+      
+    default:
+      revealText = REVEAL_TEXT_NOTHING;
+  }
+  
+  // Replace "Servant" with "Norman" in reveal text if there's only one Servant
+  revealText = replaceServantWithNorman(revealText, roleAssignments);
+  
+  return revealText;
+}
+
 // Function to assign roles randomly from selected roles
 function assignRoles(selectedRoles, targetPlayers) {
+  // Clear previous assignments
+  roleAssignments = {};
+  
   // Filter players to only those in targetPlayers list
   const validPlayers = players.filter(function(player) {
     return targetPlayers.indexOf(player.username) !== -1;
@@ -43,10 +198,24 @@ function assignRoles(selectedRoles, targetPlayers) {
   // Assign roles to players (one role per player, up to the number of roles)
   shuffledPlayers.forEach(function(player, index) {
     if (index < shuffledRoles.length) {
+      const assignedRole = shuffledRoles[index];
+      roleAssignments[player.username] = assignedRole;
+    }
+  });
+  
+  // Now emit role assignments with reveal information
+  Object.keys(roleAssignments).forEach(function(username) {
+    const assignedRole = roleAssignments[username];
+    const player = players.find(function(p) { return p.username === username; });
+    if (player) {
       const playerSocket = io.sockets.connected[player.socketId];
       if (playerSocket) {
+        const revealInfo = getRevealInfo(assignedRole, roleAssignments, username);
+        // Replace "Servant" with "Norman" in role name if there's only one Servant
+        const displayRole = replaceServantWithNorman(assignedRole, roleAssignments);
         playerSocket.emit('role assigned', {
-          role: shuffledRoles[index]
+          role: displayRole,
+          reveal: revealInfo
         });
       }
     }
@@ -136,6 +305,11 @@ io.on('connection', (socket) => {
       // Remove user's role selection if they had one
       if (roleSelections[socket.username]) {
         delete roleSelections[socket.username];
+      }
+      
+      // Remove user's role assignment if they had one
+      if (roleAssignments[socket.username]) {
+        delete roleAssignments[socket.username];
       }
       
       // Send updated user list to all clients

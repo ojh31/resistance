@@ -1,9 +1,9 @@
 {
-  "name": "socket.io-chat",
+  "name": "resistance-avalon",
   "version": "0.0.0",
-  "description": "A simple chat client using socket.io",
+  "description": "A WIP implementation of the classic boardgame Resistance, also known as Avalon.",
   "main": "index.js",
-  "author": "Grant Timmerman",
+  "author": "Oskar Hollinsworth",
   "private": true,
   "license": "BSD",
   "dependencies": {

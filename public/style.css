@@ -172,6 +172,10 @@ ul {
   text-align: center;
 }
 
+.log.role-assignment-message {
+  color: red;
+}
+
 /* Messages */
 
 .chatArea {

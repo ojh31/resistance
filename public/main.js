@@ -28,10 +28,9 @@ $(function() {
   // Role assignment variables
   var connectedUsers = []; // Array to track all connected users
   var availableRoles = [
-    'Norman', 'Merlin', 'Percival', 'Morgana', 'Assassin',
+    'Servant', 'Minion','Merlin', 'Percival', 'Morgana', 'Assassin',
     'Mordred', 'Oberon', 'Merlin Pure', 'Tristan', 'Isolde',
-    'Good Lancelot', 'Evil Lancelot', 'Guinevere', 'Cleric',
-    'Lunatic', 'Brute', 'Revealer'
+    'Brute',
   ];
   var $playerRoles = $('#playerRoles');
   var $assignButton = $('#assignButton');
@@ -77,9 +76,6 @@ $(function() {
 
   // Handle assign button click
   $assignButton.on('click', () => {
-    // Remove previous role assignment messages
-    $('.messages .role-assignment-message').remove();
-    
     // Collect all selected roles from roleSelections state (duplicates allowed)
     var selectedRoles = [];
     
@@ -307,7 +303,7 @@ $(function() {
   socket.on('login', (data) => {
     connected = true;
     // Display the welcome message
-    var message = "Welcome to Socket.IO Chat – ";
+    var message = "Welcome, " + username;
     log(message, {
       prepend: true
     });
@@ -365,10 +361,21 @@ $(function() {
 
   // Whenever the server emits 'role assigned', show the role to the player
   socket.on('role assigned', (data) => {
-    var $message = $('<li class="log role-assignment-message">Your role is: ' + cleanInput(data.role) + '</li>');
+    // Remove previous role assignment messages for this player
+    $('.messages .role-assignment-message').remove();
+    
+    var $message = $('<li class="log role-assignment-message">Role: ' + cleanInput(data.role) + '</li>');
     addMessageElement($message, {
-      prepend: true
+      prepend: false
     });
+    
+    // Add reveal information if available
+    if (data.reveal !== undefined) {
+      var $revealMessage = $('<li class="log role-assignment-message">Reveal: ' + cleanInput(data.reveal) + '</li>');
+      addMessageElement($revealMessage, {
+        prepend: false
+      });
+    }
   });
 
   // Whenever the server emits 'user list', update the connected users
