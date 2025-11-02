@@ -76,9 +76,6 @@ $(function() {
 
   // Handle assign button click
   $assignButton.on('click', () => {
-    // Remove previous role assignment messages
-    $('.messages .role-assignment-message').remove();
-    
     // Collect all selected roles from roleSelections state (duplicates allowed)
     var selectedRoles = [];
     
@@ -364,6 +361,9 @@ $(function() {
 
   // Whenever the server emits 'role assigned', show the role to the player
   socket.on('role assigned', (data) => {
+    // Remove previous role assignment messages for this player
+    $('.messages .role-assignment-message').remove();
+    
     var $message = $('<li class="log role-assignment-message">Role: ' + cleanInput(data.role) + '</li>');
     addMessageElement($message, {
       prepend: false
