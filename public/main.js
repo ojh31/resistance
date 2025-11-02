@@ -303,7 +303,7 @@ $(function() {
   socket.on('login', (data) => {
     connected = true;
     // Display the welcome message
-    var message = "Welcome to Resistance: Avalon – ";
+    var message = "Welcome, " + username;
     log(message, {
       prepend: true
     });
