@@ -150,9 +150,10 @@ function getRevealInfo(role, roleAssignments, playerUsername) {
       break;
       
     case 'Merlin Pure':
-      // Knows exact roles of every player
+      // Knows exact roles of every player (except own role, which is already shown in role message)
       const allRoles = [];
       Object.keys(playerToRole).forEach(function(username) {
+        if (username === playerUsername) return; // Don't include own role
         allRoles.push(username + ' is ' + playerToRole[username]);
       });
       if (allRoles.length === 0) {
