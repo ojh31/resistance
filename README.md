@@ -20,3 +20,4 @@ on website load.
 - A notification is sent to all users when a user joins or leaves
 the chatroom.
 - Dropdown lists are used to select the set of playable roles. On button press, these roles are randomly and privately distributed to the players.
+- Private role-dependent information is revealed to each player.
