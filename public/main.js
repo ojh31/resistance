@@ -28,10 +28,9 @@ $(function() {
   // Role assignment variables
   var connectedUsers = []; // Array to track all connected users
   var availableRoles = [
-    'Norman', 'Merlin', 'Percival', 'Morgana', 'Assassin',
+    'Servant', 'Minion','Merlin', 'Percival', 'Morgana', 'Assassin',
     'Mordred', 'Oberon', 'Merlin Pure', 'Tristan', 'Isolde',
-    'Good Lancelot', 'Evil Lancelot', 'Guinevere', 'Cleric',
-    'Lunatic', 'Brute', 'Revealer'
+    'Brute',
   ];
   var $playerRoles = $('#playerRoles');
   var $assignButton = $('#assignButton');
