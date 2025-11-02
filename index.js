@@ -20,6 +20,9 @@ var players = []; // Array to track connected players: {socketId, username}
 var roleSelections = {}; // Object to track role selections: {username: role}
 var roleAssignments = {}; // Object to track actual role assignments: {username: role}
 
+// Constants
+var REVEAL_TEXT_NOTHING = 'You know nothing, good luck!';
+
 // Function to shuffle array (Fisher-Yates shuffle)
 function shuffleArray(array) {
   const shuffled = [...array];
@@ -51,7 +54,7 @@ function getRevealInfo(role, roleAssignments, playerUsername) {
   
   switch(role) {
     case 'Servant':
-      revealText = 'You know nothing, good luck!';
+      revealText = REVEAL_TEXT_NOTHING;
       break;
       
     case 'Minion':
@@ -68,7 +71,7 @@ function getRevealInfo(role, roleAssignments, playerUsername) {
         }
       });
       if (minions.length === 0) {
-        revealText = 'You know nothing, good luck!';
+        revealText = REVEAL_TEXT_NOTHING;
       } else {
         revealText = 'Minions of Mordred - ' + minions.join(', ');
       }
@@ -84,7 +87,7 @@ function getRevealInfo(role, roleAssignments, playerUsername) {
         }
       });
       if (merlinSees.length === 0) {
-        revealText = 'You know nothing, good luck!';
+        revealText = REVEAL_TEXT_NOTHING;
       } else {
         revealText = 'Minions of Mordred - ' + merlinSees.join(', ');
       }
@@ -104,7 +107,7 @@ function getRevealInfo(role, roleAssignments, playerUsername) {
         });
       }
       if (percivalSees.length === 0) {
-        revealText = 'You know nothing, good luck!';
+        revealText = REVEAL_TEXT_NOTHING;
       } else {
         // Sort alphabetically to prevent revealing which is which
         percivalSees.sort();
@@ -123,7 +126,7 @@ function getRevealInfo(role, roleAssignments, playerUsername) {
         }
       });
       if (mordredSees.length === 0) {
-        revealText = 'You know nothing, good luck!';
+        revealText = REVEAL_TEXT_NOTHING;
       } else {
         revealText = 'Minions of Mordred - ' + mordredSees.join(', ');
       }
@@ -140,7 +143,7 @@ function getRevealInfo(role, roleAssignments, playerUsername) {
         }
       });
       if (oberonSees.length === 0) {
-        revealText = 'You know nothing, good luck!';
+        revealText = REVEAL_TEXT_NOTHING;
       } else {
         revealText = 'Minions of Mordred - ' + oberonSees.join(', ');
       }
@@ -153,7 +156,7 @@ function getRevealInfo(role, roleAssignments, playerUsername) {
         allRoles.push(username + ' is ' + playerToRole[username]);
       });
       if (allRoles.length === 0) {
-        revealText = 'You know nothing, good luck!';
+        revealText = REVEAL_TEXT_NOTHING;
       } else {
         revealText = allRoles.join(', ');
       }
@@ -164,7 +167,7 @@ function getRevealInfo(role, roleAssignments, playerUsername) {
       if (roleToPlayers['Isolde'] && roleToPlayers['Isolde'].length > 0) {
         revealText = 'Isolde - ' + roleToPlayers['Isolde'].join(', ');
       } else {
-        revealText = 'You know nothing, good luck!';
+        revealText = REVEAL_TEXT_NOTHING;
       }
       break;
       
@@ -173,12 +176,12 @@ function getRevealInfo(role, roleAssignments, playerUsername) {
       if (roleToPlayers['Tristan'] && roleToPlayers['Tristan'].length > 0) {
         revealText = 'Tristan - ' + roleToPlayers['Tristan'].join(', ');
       } else {
-        revealText = 'You know nothing, good luck!';
+        revealText = REVEAL_TEXT_NOTHING;
       }
       break;
       
     default:
-      revealText = 'You know nothing, good luck!';
+      revealText = REVEAL_TEXT_NOTHING;
   }
   
   return revealText;
