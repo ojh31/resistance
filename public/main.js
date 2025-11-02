@@ -306,7 +306,7 @@ $(function() {
   socket.on('login', (data) => {
     connected = true;
     // Display the welcome message
-    var message = "Welcome to Resistance - Avalon – ";
+    var message = "Welcome to Resistance: Avalon – ";
     log(message, {
       prepend: true
     });
@@ -364,16 +364,16 @@ $(function() {
 
   // Whenever the server emits 'role assigned', show the role to the player
   socket.on('role assigned', (data) => {
-    var $message = $('<li class="log role-assignment-message">Your role is: ' + cleanInput(data.role) + '</li>');
+    var $message = $('<li class="log role-assignment-message">Role: ' + cleanInput(data.role) + '</li>');
     addMessageElement($message, {
-      prepend: true
+      prepend: false
     });
     
     // Add reveal information if available
     if (data.reveal !== undefined) {
       var $revealMessage = $('<li class="log role-assignment-message">Reveal: ' + cleanInput(data.reveal) + '</li>');
       addMessageElement($revealMessage, {
-        prepend: true
+        prepend: false
       });
     }
   });
