@@ -368,6 +368,14 @@ $(function() {
     addMessageElement($message, {
       prepend: true
     });
+    
+    // Add reveal information if available
+    if (data.reveal !== undefined) {
+      var $revealMessage = $('<li class="log role-assignment-message">Reveal: ' + cleanInput(data.reveal) + '</li>');
+      addMessageElement($revealMessage, {
+        prepend: true
+      });
+    }
   });
 
   // Whenever the server emits 'user list', update the connected users
