@@ -33,6 +33,25 @@ function shuffleArray(array) {
   return shuffled;
 }
 
+// Function to check if there's only one Servant in role assignments
+function hasSingleServant(roleAssignments) {
+  let servantCount = 0;
+  Object.keys(roleAssignments).forEach(function(username) {
+    if (roleAssignments[username] === 'Servant') {
+      servantCount++;
+    }
+  });
+  return servantCount === 1;
+}
+
+// Function to replace "Servant" with "Norman" in text if there's only one Servant
+function replaceServantWithNorman(text, roleAssignments) {
+  if (hasSingleServant(roleAssignments)) {
+    return text.replace(/Servant/g, 'Norman');
+  }
+  return text;
+}
+
 // Function to get reveal information for a role
 function getRevealInfo(role, roleAssignments, playerUsername) {
   const evilRoles = ['Minion', 'Morgana', 'Assassin', 'Mordred', 'Oberon', 'Brute'];
@@ -154,7 +173,9 @@ function getRevealInfo(role, roleAssignments, playerUsername) {
       const allRoles = [];
       Object.keys(playerToRole).forEach(function(username) {
         if (username === playerUsername) return; // Don't include own role
-        allRoles.push(username + ' is ' + playerToRole[username]);
+        // Apply transformation to replace "Servant" with "Norman" if there's only one Servant
+        const roleName = replaceServantWithNorman(playerToRole[username], roleAssignments);
+        allRoles.push(username + ' is ' + roleName);
       });
       if (allRoles.length === 0) {
         revealText = REVEAL_TEXT_NOTHING;
@@ -184,6 +205,9 @@ function getRevealInfo(role, roleAssignments, playerUsername) {
     default:
       revealText = REVEAL_TEXT_NOTHING;
   }
+  
+  // Replace "Servant" with "Norman" in reveal text if there's only one Servant
+  revealText = replaceServantWithNorman(revealText, roleAssignments);
   
   return revealText;
 }
@@ -218,8 +242,10 @@ function assignRoles(selectedRoles, targetPlayers) {
       const playerSocket = io.sockets.connected[player.socketId];
       if (playerSocket) {
         const revealInfo = getRevealInfo(assignedRole, roleAssignments, username);
+        // Replace "Servant" with "Norman" in role name if there's only one Servant
+        const displayRole = replaceServantWithNorman(assignedRole, roleAssignments);
         playerSocket.emit('role assigned', {
-          role: assignedRole,
+          role: displayRole,
           reveal: revealInfo
         });
       }
