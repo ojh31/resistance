@@ -17,6 +17,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 var numUsers = 0;
 var players = []; // Array to track connected players: {socketId, username}
+var roleSelections = {}; // Object to track role selections: {username: role}
 
 // Function to shuffle array (Fisher-Yates shuffle)
 function shuffleArray(array) {
@@ -28,22 +29,33 @@ function shuffleArray(array) {
   return shuffled;
 }
 
-// Function to assign roles to 5 players
-function assignRoles() {
-  const roles = ['Norman', 'Merlin', 'Percival', 'Morgana', 'Assassin'];
-  const shuffledRoles = shuffleArray(roles);
+// Function to assign roles randomly from selected roles
+function assignRoles(selectedRoles, targetPlayers) {
+  // Filter players to only those in targetPlayers list
+  const validPlayers = players.filter(function(player) {
+    return targetPlayers.indexOf(player.username) !== -1;
+  });
   
-  players.forEach((player, index) => {
-    const role = shuffledRoles[index];
-    // Find the socket and send private message
-    // For Socket.IO v2, use io.sockets.connected
-    const playerSocket = io.sockets.connected[player.socketId];
-    if (playerSocket) {
-      playerSocket.emit('role assigned', {
-        role: role
-      });
+  // Shuffle both roles and players for random distribution
+  const shuffledRoles = shuffleArray([...selectedRoles]);
+  const shuffledPlayers = shuffleArray([...validPlayers]);
+  
+  // Assign roles to players (one role per player, up to the number of roles)
+  shuffledPlayers.forEach(function(player, index) {
+    if (index < shuffledRoles.length) {
+      const playerSocket = io.sockets.connected[player.socketId];
+      if (playerSocket) {
+        playerSocket.emit('role assigned', {
+          role: shuffledRoles[index]
+        });
+      }
     }
   });
+}
+
+// Function to get list of all connected usernames
+function getUserList() {
+  return players.map(function(p) { return p.username; });
 }
 
 io.on('connection', (socket) => {
@@ -82,10 +94,15 @@ io.on('connection', (socket) => {
       numUsers: numUsers
     });
     
-    // When 5th player joins, assign roles
-    if (players.length === 5) {
-      assignRoles();
-    }
+    // Send updated user list to all clients
+    io.emit('user list', {
+      users: getUserList()
+    });
+    
+    // Also send current role selections
+    io.emit('role selections updated', {
+      selections: roleSelections
+    });
   });
 
   // when the client emits 'typing', we broadcast it to others
@@ -115,6 +132,56 @@ io.on('connection', (socket) => {
         username: socket.username,
         numUsers: numUsers
       });
+      
+      // Remove user's role selection if they had one
+      if (roleSelections[socket.username]) {
+        delete roleSelections[socket.username];
+      }
+      
+      // Send updated user list to all clients
+      io.emit('user list', {
+        users: getUserList()
+      });
+      
+      // Also send updated role selections
+      io.emit('role selections updated', {
+        selections: roleSelections
+      });
+    }
+  });
+
+  // Handle request for user list
+  socket.on('get users', () => {
+    socket.emit('user list', {
+      users: getUserList()
+    });
+    // Also send current role selections
+    socket.emit('role selections updated', {
+      selections: roleSelections
+    });
+  });
+
+  // Handle role selection change
+  socket.on('role selection changed', (data) => {
+    if (data.username && data.role !== undefined) {
+      if (data.role === '') {
+        delete roleSelections[data.username];
+      } else {
+        roleSelections[data.username] = data.role;
+      }
+      
+      // Broadcast updated selections to all clients
+      io.emit('role selections updated', {
+        selections: roleSelections
+      });
+    }
+  });
+
+  // Handle role assignment request
+  socket.on('assign roles', (data) => {
+    if (data.selectedRoles && Array.isArray(data.selectedRoles) && 
+        data.players && Array.isArray(data.players)) {
+      assignRoles(data.selectedRoles, data.players);
     }
   });
 });
