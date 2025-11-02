@@ -80,12 +80,12 @@ function getRevealInfo(role, roleAssignments, playerUsername) {
     case 'Morgana':
     case 'Assassin':
     case 'Brute':
-      // Knows other minions of Mordred (evil players except self, Mordred and Oberon)
+      // Knows other minions of Mordred (evil players except self and Oberon - including Mordred)
       const minions = [];
       Object.keys(playerToRole).forEach(function(username) {
         if (username === playerUsername) return; // Don't include self
         const playerRole = playerToRole[username];
-        if (evilRoles.indexOf(playerRole) !== -1 && playerRole !== 'Mordred' && playerRole !== 'Oberon') {
+        if (evilRoles.indexOf(playerRole) !== -1 && playerRole !== 'Oberon') {
           minions.push(username);
         }
       });
@@ -135,12 +135,12 @@ function getRevealInfo(role, roleAssignments, playerUsername) {
       break;
       
     case 'Mordred':
-      // Same as Minion
+      // Same as Minion (sees other evil players except self and Oberon)
       const mordredSees = [];
       Object.keys(playerToRole).forEach(function(username) {
         if (username === playerUsername) return; // Don't include self
         const playerRole = playerToRole[username];
-        if (evilRoles.indexOf(playerRole) !== -1 && playerRole !== 'Mordred' && playerRole !== 'Oberon') {
+        if (evilRoles.indexOf(playerRole) !== -1 && playerRole !== 'Oberon') {
           mordredSees.push(username);
         }
       });
@@ -152,12 +152,12 @@ function getRevealInfo(role, roleAssignments, playerUsername) {
       break;
       
     case 'Oberon':
-      // Same as Minion (but other minions don't know him)
+      // Same as Minion (but other minions don't know him - sees Mordred and other evil players except self)
       const oberonSees = [];
       Object.keys(playerToRole).forEach(function(username) {
         if (username === playerUsername) return; // Don't include self
         const playerRole = playerToRole[username];
-        if (evilRoles.indexOf(playerRole) !== -1 && playerRole !== 'Mordred' && playerRole !== 'Oberon') {
+        if (evilRoles.indexOf(playerRole) !== -1 && playerRole !== 'Oberon') {
           oberonSees.push(username);
         }
       });
