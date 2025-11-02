@@ -106,6 +106,8 @@ function getRevealInfo(role, roleAssignments, playerUsername) {
       if (percivalSees.length === 0) {
         revealText = 'You know nothing, good luck!';
       } else {
+        // Sort alphabetically to prevent revealing which is which
+        percivalSees.sort();
         revealText = 'Merlin or Morgana - ' + percivalSees.join(', ');
       }
       break;
