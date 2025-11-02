@@ -24,6 +24,84 @@ $(function() {
   var $currentInput = $usernameInput.focus();
 
   var socket = io();
+  
+  // Role assignment variables
+  var connectedUsers = []; // Array to track all connected users
+  var availableRoles = [
+    'Norman', 'Merlin', 'Percival', 'Morgana', 'Assassin',
+    'Mordred', 'Oberon', 'Merlin Pure', 'Tristan', 'Isolde',
+    'Good Lancelot', 'Evil Lancelot', 'Guinevere', 'Cleric',
+    'Lunatic', 'Brute', 'Revealer'
+  ];
+  var $playerRoles = $('#playerRoles');
+  var $assignButton = $('#assignButton');
+
+  // Role selections state (username -> role)
+  var roleSelections = {};
+
+  // Update the role assignment UI
+  const updateRoleAssignmentUI = () => {
+    $playerRoles.empty();
+    
+    // Create a dropdown for each connected player
+    connectedUsers.forEach(function(user) {
+      var $playerItem = $('<div class="playerRoleItem"></div>');
+      var $roleSelect = $('<select></select>').attr('data-username', user);
+      
+      // Add empty option
+      $('<option></option>').attr('value', '').text('No role').appendTo($roleSelect);
+      
+      // Add all available roles
+      availableRoles.forEach(function(role) {
+        var $option = $('<option></option>').attr('value', role).text(role);
+        // Mark as selected if this role is already selected for this user
+        if (roleSelections[user] === role) {
+          $option.attr('selected', 'selected');
+        }
+        $option.appendTo($roleSelect);
+      });
+      
+      // Handle dropdown change - sync with server
+      $roleSelect.on('change', function() {
+        var selectedRole = $(this).val();
+        socket.emit('role selection changed', {
+          username: user,
+          role: selectedRole || ''
+        });
+      });
+      
+      $playerItem.append($roleSelect);
+      $playerRoles.append($playerItem);
+    });
+  }
+
+  // Handle assign button click
+  $assignButton.on('click', () => {
+    // Remove previous role assignment messages
+    $('.messages .role-assignment-message').remove();
+    
+    // Collect all selected roles from roleSelections state (duplicates allowed)
+    var selectedRoles = [];
+    
+    connectedUsers.forEach(function(user) {
+      if (roleSelections[user] && roleSelections[user] !== '') {
+        selectedRoles.push(roleSelections[user]);
+      }
+    });
+    
+    if (selectedRoles.length === 0) {
+      log('Please select at least one role', {
+        prepend: true
+      });
+      return;
+    }
+    
+    // Send selected roles to server for random distribution
+    socket.emit('assign roles', {
+      selectedRoles: selectedRoles,
+      players: connectedUsers
+    });
+  });
 
   const addParticipantsMessage = (data) => {
     var message = '';
@@ -234,6 +312,8 @@ $(function() {
       prepend: true
     });
     addParticipantsMessage(data);
+    // Request current user list from server
+    socket.emit('get users');
   });
 
   // Whenever the server emits 'new message', update the chat body
@@ -245,6 +325,8 @@ $(function() {
   socket.on('user joined', (data) => {
     log(data.username + ' joined');
     addParticipantsMessage(data);
+    // Request updated user list
+    socket.emit('get users');
   });
 
   // Whenever the server emits 'user left', log it in the chat body
@@ -252,6 +334,8 @@ $(function() {
     log(data.username + ' left');
     addParticipantsMessage(data);
     removeChatTyping(data);
+    // Request updated user list
+    socket.emit('get users');
   });
 
   // Whenever the server emits 'typing', show the typing message
@@ -277,6 +361,28 @@ $(function() {
 
   socket.on('reconnect_error', () => {
     log('attempt to reconnect has failed');
+  });
+
+  // Whenever the server emits 'role assigned', show the role to the player
+  socket.on('role assigned', (data) => {
+    var $message = $('<li class="log role-assignment-message">Your role is: ' + cleanInput(data.role) + '</li>');
+    addMessageElement($message, {
+      prepend: true
+    });
+  });
+
+  // Whenever the server emits 'user list', update the connected users
+  socket.on('user list', (data) => {
+    connectedUsers = data.users || [];
+    updateRoleAssignmentUI();
+  });
+
+  // Whenever the server emits 'role selections updated', sync the selections
+  socket.on('role selections updated', (data) => {
+    if (data.selections) {
+      roleSelections = data.selections;
+      updateRoleAssignmentUI();
+    }
   });
 
 });
