@@ -279,4 +279,11 @@ $(function() {
     log('attempt to reconnect has failed');
   });
 
+  // Whenever the server emits 'role assigned', show the role to the player
+  socket.on('role assigned', (data) => {
+    log('Your role is: ' + data.role, {
+      prepend: true
+    });
+  });
+
 });
