@@ -80,7 +80,10 @@ function getRevealInfo(role, roleAssignments, playerUsername) {
     case 'Morgana':
     case 'Assassin':
     case 'Brute':
-      // Knows other minions of Mordred (evil players except self and Oberon - including Mordred)
+    case 'Mordred':
+    case 'Oberon':
+      // Knows other minions of Mordred (evil players except self and Oberon)
+      // Note: Oberon sees others but they don't see him
       const minions = [];
       Object.keys(playerToRole).forEach(function(username) {
         if (username === playerUsername) return; // Don't include self
@@ -131,40 +134,6 @@ function getRevealInfo(role, roleAssignments, playerUsername) {
         // Sort alphabetically to prevent revealing which is which
         percivalSees.sort();
         revealText = 'Merlin or Morgana - ' + percivalSees.join(', ');
-      }
-      break;
-      
-    case 'Mordred':
-      // Same as Minion (sees other evil players except self and Oberon)
-      const mordredSees = [];
-      Object.keys(playerToRole).forEach(function(username) {
-        if (username === playerUsername) return; // Don't include self
-        const playerRole = playerToRole[username];
-        if (evilRoles.indexOf(playerRole) !== -1 && playerRole !== 'Oberon') {
-          mordredSees.push(username);
-        }
-      });
-      if (mordredSees.length === 0) {
-        revealText = REVEAL_TEXT_NOTHING;
-      } else {
-        revealText = 'Minions of Mordred - ' + mordredSees.join(', ');
-      }
-      break;
-      
-    case 'Oberon':
-      // Same as Minion (but other minions don't know him - sees Mordred and other evil players except self)
-      const oberonSees = [];
-      Object.keys(playerToRole).forEach(function(username) {
-        if (username === playerUsername) return; // Don't include self
-        const playerRole = playerToRole[username];
-        if (evilRoles.indexOf(playerRole) !== -1 && playerRole !== 'Oberon') {
-          oberonSees.push(username);
-        }
-      });
-      if (oberonSees.length === 0) {
-        revealText = REVEAL_TEXT_NOTHING;
-      } else {
-        revealText = 'Minions of Mordred - ' + oberonSees.join(', ');
       }
       break;
       
