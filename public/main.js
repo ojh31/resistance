@@ -45,6 +45,10 @@ $(function() {
   var selectedTeam = [];
   var requiredTeamSize = 0;
   var currentQuestIndex = 1;
+  
+  // Voting state
+  var isVoting = false;
+  var currentVoteTrack = 1;
 
   // Update the player circle visualization
   const updatePlayerCircle = () => {
@@ -203,8 +207,8 @@ $(function() {
       var $voteTile = $('<div class="voteTrackTile"></div>')
         .text(i);
       
-      // Add active highlight to the first vote tile
-      if (i === 1) {
+      // Add active highlight based on currentVoteTrack
+      if (i === currentVoteTrack) {
         $voteTile.addClass('active');
         var $marker = $('<div class="questTokenMarker"></div>');
         $voteTile.append($marker);
@@ -215,6 +219,37 @@ $(function() {
     
     $voteTrack.append($voteTrackTiles);
     $questTokensContainer.append($voteTrack);
+  };
+
+  // Update quest token to next quest
+  const incrementQuestToken = () => {
+    // Remove active marker from current quest
+    var $currentQuest = $('.questToken.active');
+    $currentQuest.removeClass('active');
+    $currentQuest.find('.questTokenMarker').remove();
+    
+    // Move to next quest
+    currentQuestIndex++;
+    if (currentQuestIndex <= 5) {
+      var $nextQuest = $('.questToken').eq(currentQuestIndex - 1);
+      $nextQuest.addClass('active');
+      var $marker = $('<div class="questTokenMarker"></div>');
+      $nextQuest.append($marker);
+    }
+  };
+
+  // Update vote track to next vote
+  const incrementVoteTrack = () => {
+    currentVoteTrack++;
+    if (currentVoteTrack <= 5) {
+      initializeVoteTrack();
+    }
+  };
+
+  // Rotate leader to next player (server handles this, just update display)
+  const rotateLeader = () => {
+    // Server will send updated user list, so we just wait for it
+    // The updatePlayerCircle will be called when user list is received
   };
 
   // Request team selection from leader
@@ -410,9 +445,22 @@ $(function() {
     // if there is a non-empty message and a socket connection
     if (message && connected) {
       $inputMessage.val('');
+      var messageLower = message.toLowerCase().trim();
+      
+      // Handle voting
+      if (isVoting && (messageLower === 'y' || messageLower === 'n')) {
+        socket.emit('submit vote', {
+          vote: messageLower
+        });
+        log('You voted: ' + (messageLower === 'y' ? 'Approve' : 'Reject'), {
+          prepend: false
+        });
+        isVoting = false;
+        return;
+      }
       
       // Handle team selection confirmation
-      if (isSelectingTeam && username === connectedUsers[0] && message.toLowerCase().trim() === 'y') {
+      if (isSelectingTeam && username === connectedUsers[0] && messageLower === 'y') {
         if (selectedTeam.length === requiredTeamSize) {
           // Confirm team selection
           socket.emit('confirm team', {
@@ -724,6 +772,60 @@ $(function() {
         selectedTeam = [];
         $('.teamPreview').remove();
         updatePlayerCircle();
+      }
+    }
+  });
+
+  // Handle vote request
+  socket.on('request vote', (data) => {
+    if (data.team && data.leader) {
+      isVoting = true;
+      log('Vote on team: ' + data.team.join(', ') + '. Type "y" to approve or "n" to reject.', {
+        prepend: false
+      });
+    }
+  });
+
+  // Handle vote result
+  socket.on('vote result', (data) => {
+    if (data.approved !== undefined) {
+      var resultText = 'Vote result: ';
+      if (data.approved) {
+        resultText += 'APPROVED (' + data.approveCount + ' approve, ' + data.rejectCount + ' reject). Mission ' + currentQuestIndex + ' begins!';
+        log(resultText, {
+          prepend: false
+        });
+        
+        // Increment quest token
+        incrementQuestToken();
+        
+        // Reset vote track to 1 for next quest
+        currentVoteTrack = 1;
+        initializeVoteTrack();
+      } else {
+        resultText += 'REJECTED (' + data.approveCount + ' approve, ' + data.rejectCount + ' reject).';
+        log(resultText, {
+          prepend: false
+        });
+        
+        // Increment vote track
+        incrementVoteTrack();
+        
+        // Rotate leader
+        rotateLeader();
+        
+        // If vote track hasn't reached 5, request new team selection
+        if (currentVoteTrack <= 5) {
+          setTimeout(function() {
+            socket.emit('start team selection', {
+              questIndex: currentQuestIndex
+            });
+          }, 1000);
+        } else {
+          log('Vote track reached 5. Game over - spies win!', {
+            prepend: false
+          });
+        }
       }
     }
   });

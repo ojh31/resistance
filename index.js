@@ -20,6 +20,9 @@ var players = []; // Array to track connected players: {socketId, username}
 var roleSets = [{}]; // Array to track role sets: [{username: role}, ...]
 var roleAssignments = {}; // Object to track actual role assignments: {username: role}
 
+// Voting state
+var currentVote = null; // {team: [...], leader: '...', votes: {username: 'y'|'n'}}
+
 // Constants
 var REVEAL_TEXT_NOTHING = 'You know nothing, good luck!';
 
@@ -379,11 +382,82 @@ io.on('connection', (socket) => {
   // Handle team selection confirmation
   socket.on('confirm team', (data) => {
     if (data.team && Array.isArray(data.team)) {
-      // Broadcast the selected team to all players
+      // Initialize voting
+      currentVote = {
+        team: data.team,
+        leader: socket.username,
+        votes: {}
+      };
+      
+      // Broadcast the selected team to all players and request votes
       io.emit('team selected', {
         leader: socket.username,
         team: data.team
       });
+      
+      // Request votes from all players
+      io.emit('request vote', {
+        team: data.team,
+        leader: socket.username
+      });
+    }
+  });
+
+  // Handle vote submission
+  socket.on('submit vote', (data) => {
+    if (currentVote && data.vote && (data.vote === 'y' || data.vote === 'n')) {
+      // Record the vote
+      currentVote.votes[socket.username] = data.vote;
+      
+      // Check if all players have voted
+      var allVoted = true;
+      players.forEach(function(player) {
+        if (!currentVote.votes[player.username]) {
+          allVoted = false;
+        }
+      });
+      
+      if (allVoted) {
+        // Count votes
+        var approveCount = 0;
+        var rejectCount = 0;
+        Object.keys(currentVote.votes).forEach(function(username) {
+          if (currentVote.votes[username] === 'y') {
+            approveCount++;
+          } else {
+            rejectCount++;
+          }
+        });
+        
+        var totalVotes = approveCount + rejectCount;
+        var majority = Math.floor(totalVotes / 2) + 1;
+        var approved = approveCount >= majority;
+        
+        // Broadcast result
+        io.emit('vote result', {
+          approved: approved,
+          approveCount: approveCount,
+          rejectCount: rejectCount,
+          team: currentVote.team,
+          leader: currentVote.leader
+        });
+        
+        // If rejected, rotate leader
+        if (!approved) {
+          if (players.length > 1) {
+            var firstPlayer = players.shift();
+            players.push(firstPlayer);
+            
+            // Send updated user list to all clients
+            io.emit('user list', {
+              users: getUserList()
+            });
+          }
+        }
+        
+        // Clear current vote
+        currentVote = null;
+      }
     }
   });
 
