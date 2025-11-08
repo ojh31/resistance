@@ -89,16 +89,45 @@ $(function() {
     $playerCircleContainer.append($circle);
   };
 
+  // Get quest size based on quest index and number of players
+  const getQuestSize = (questIndex, numPlayers) => {
+    var questSize = {
+      '1,5': 2, '1,6': 2, '1,7': 2, '1,8': 3, '1,9': 3, '1,10': 3,
+      '2,5': 3, '2,6': 3, '2,7': 3, '2,8': 4, '2,9': 4, '2,10': 4,
+      '3,5': 2, '3,6': 4, '3,7': 3, '3,8': 4, '3,9': 4, '3,10': 4,
+      '4,5': 3, '4,6': 3, '4,7': 4, '4,8': 5, '4,9': 5, '4,10': 5,
+      '5,5': 3, '5,6': 4, '5,7': 4, '5,8': 5, '5,9': 5, '5,10': 5,
+    };
+    var key = questIndex + ',' + numPlayers;
+    return questSize[key] || 0;
+  };
+
   // Initialize quest tokens
   const initializeQuestTokens = () => {
     $questTokensContainer.empty();
+    
+    var numPlayers = connectedUsers.length;
+    if (numPlayers < 5) {
+      numPlayers = 5; // Default to minimum
+    } else if (numPlayers > 10) {
+      numPlayers = 10; // Cap at maximum
+    }
     
     var $questTokens = $('<div class="questTokens"></div>');
     
     // Create 5 quest tokens
     for (var i = 1; i <= 5; i++) {
-      var $questToken = $('<div class="questToken"></div>')
-        .text(i);
+      var questSize = getQuestSize(i, numPlayers);
+      
+      var $questToken = $('<div class="questToken"></div>');
+      
+      // Add quest label at the top
+      var $questLabel = $('<div class="questTokenLabel">quest ' + i + '</div>');
+      $questToken.append($questLabel);
+      
+      // Add quest size number in the middle
+      var $questSize = $('<div class="questTokenSize">' + questSize + '</div>');
+      $questToken.append($questSize);
       
       // Add active marker to the first quest token
       if (i === 1) {
@@ -498,6 +527,7 @@ $(function() {
     connectedUsers = data.users || [];
     updateRoleAssignmentUI();
     updatePlayerCircle();
+    initializeQuestTokens(); // Update quest sizes based on number of players
   });
 
   // Whenever the server emits 'role sets updated', sync the role sets
