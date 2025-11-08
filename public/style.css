@@ -261,6 +261,18 @@ ul {
   transform: translateX(-50%);
 }
 
+.leaderHammer {
+  position: absolute;
+  font-size: 24px;
+  color: #8B4513;
+  font-weight: bold;
+  pointer-events: none;
+  z-index: 10;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.7), 0 0 2px rgba(139, 69, 19, 0.5);
+  transform: translateX(-50%);
+  filter: contrast(1.2);
+}
+
 /* Role Assignment */
 
 .roleAssignment {

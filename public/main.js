@@ -130,6 +130,21 @@ $(function() {
           });
         $circle.append($crown);
       }
+      
+      // Add hammer symbol over the player who will be leader on vote 5
+      // Leader rotates after each vote, so vote 5 leader is at index (5 - currentVoteTrack) % numPlayers
+      if (currentVoteTrack < 5) {
+        var votesUntilVote5 = 5 - currentVoteTrack;
+        var vote5LeaderIndex = votesUntilVote5 % connectedUsers.length;
+        if (index === vote5LeaderIndex) {
+          var $hammer = $('<div class="leaderHammer">⚒</div>')
+            .css({
+              left: (x + 30) + 'px', // Center of the player item
+              top: (y + 40) + 'px'   // Half on the bottom of the player item (player item is 60px tall)
+            });
+          $circle.append($hammer);
+        }
+      }
     });
     
     $playerCircleContainer.append($circle);
