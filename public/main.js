@@ -488,42 +488,64 @@ $(function() {
             prepend: false
           });
           return;
+        } else {
+          // Reject invalid input during vote confirmation
+          log('Please respond with "y" or "n"', {
+            prepend: false
+          });
+          return;
         }
       }
       
       // Handle initial vote (approve/reject)
-      if (isVoting && pendingVote === null && (messageLower === 'y' || messageLower === 'n')) {
-        // Store the vote and request confirmation
-        pendingVote = messageLower;
-        log('You selected: ' + (messageLower === 'y' ? 'Approve' : 'Reject') + '. Confirm? ("y"/"n")', {
-          prepend: false
-        });
-        return;
+      if (isVoting && pendingVote === null) {
+        if (messageLower === 'y' || messageLower === 'n') {
+          // Store the vote and request confirmation
+          pendingVote = messageLower;
+          log('You selected: ' + (messageLower === 'y' ? 'Approve' : 'Reject') + '. Confirm? ("y"/"n")', {
+            prepend: false
+          });
+          return;
+        } else {
+          // Reject invalid input during voting
+          log('Please respond with "y" to approve or "n" to reject', {
+            prepend: false
+          });
+          return;
+        }
       }
       
       // Handle team selection confirmation
-      if (isSelectingTeam && username === connectedUsers[0] && messageLower === 'y') {
-        if (selectedTeam.length === requiredTeamSize) {
-          // Confirm team selection
-          socket.emit('confirm team', {
-            team: selectedTeam
-          });
-          
-          log('Team confirmed: ' + selectedTeam.join(', '), {
-            prepend: false
-          });
-          
-          // Reset team selection state
-          isSelectingTeam = false;
-          selectedTeam = [];
-          $('.teamPreview').remove();
-          updatePlayerCircle();
+      if (isSelectingTeam && username === connectedUsers[0]) {
+        if (messageLower === 'y') {
+          if (selectedTeam.length === requiredTeamSize) {
+            // Confirm team selection
+            socket.emit('confirm team', {
+              team: selectedTeam
+            });
+            
+            log('Team confirmed: ' + selectedTeam.join(', '), {
+              prepend: false
+            });
+            
+            // Reset team selection state
+            isSelectingTeam = false;
+            selectedTeam = [];
+            $('.teamPreview').remove();
+            updatePlayerCircle();
+          } else {
+            log('Please select exactly ' + requiredTeamSize + ' players before confirming.', {
+              prepend: false
+            });
+          }
+          return;
         } else {
-          log('Please select exactly ' + requiredTeamSize + ' players before confirming.', {
+          // Reject invalid input during team selection
+          log('Please respond with "y" to confirm your team selection', {
             prepend: false
           });
+          return;
         }
-        return;
       }
       
       addChatMessage({
