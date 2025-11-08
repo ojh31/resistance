@@ -34,9 +34,49 @@ $(function() {
   ];
   var $playerRoles = $('#playerRoles');
   var $assignButton = $('#assignButton');
+  var $playerCircleContainer = $('#playerCircleContainer');
 
   // Role sets state - array of role set objects, each is {username: role}
   var roleSets = [{}]; // Start with one empty role set
+
+  // Update the player circle visualization
+  const updatePlayerCircle = () => {
+    $playerCircleContainer.empty();
+    
+    if (connectedUsers.length === 0) {
+      return;
+    }
+    
+    var $circle = $('<div class="playerCircle"></div>');
+    var centerX = 100; // Center of the 200px container
+    var centerY = 100;
+    var radius = 70; // Radius of the circle
+    
+    // Position players in a circle, starting from top (12 o'clock) and going clockwise
+    connectedUsers.forEach(function(user, index) {
+      // Calculate angle: start at -90 degrees (top) and go clockwise
+      // -90 degrees = top, 0 degrees = right, 90 degrees = bottom, 180 degrees = left
+      var angle = (-90 + (360 / connectedUsers.length) * index) * (Math.PI / 180);
+      
+      // Calculate position
+      var x = centerX + radius * Math.cos(angle) - 30; // -30 to center the 60px item
+      var y = centerY + radius * Math.sin(angle) - 30;
+      
+      // Create player item
+      var $playerItem = $('<div class="playerCircleItem"></div>')
+        .text(user)
+        .css({
+          left: x + 'px',
+          top: y + 'px',
+          backgroundColor: getUsernameColor(user),
+          color: '#fff'
+        });
+      
+      $circle.append($playerItem);
+    });
+    
+    $playerCircleContainer.append($circle);
+  };
 
   // Update the role assignment UI
   const updateRoleAssignmentUI = () => {
@@ -420,6 +460,7 @@ $(function() {
   socket.on('user list', (data) => {
     connectedUsers = data.users || [];
     updateRoleAssignmentUI();
+    updatePlayerCircle();
   });
 
   // Whenever the server emits 'role sets updated', sync the role sets
