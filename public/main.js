@@ -48,6 +48,7 @@ $(function() {
   
   // Voting state
   var isVoting = false;
+  var pendingVote = null; // Stores the vote ('y' or 'n') waiting for confirmation
   var currentVoteTrack = 1;
 
   // Update the player circle visualization
@@ -467,15 +468,36 @@ $(function() {
       $inputMessage.val('');
       var messageLower = message.toLowerCase().trim();
       
-      // Handle voting
-      if (isVoting && (messageLower === 'y' || messageLower === 'n')) {
-        socket.emit('submit vote', {
-          vote: messageLower
-        });
-        log('You voted: ' + (messageLower === 'y' ? 'Approve' : 'Reject'), {
+      // Handle vote confirmation
+      if (isVoting && pendingVote !== null) {
+        if (messageLower === 'y') {
+          // Confirm and submit the pending vote
+          socket.emit('submit vote', {
+            vote: pendingVote
+          });
+          log('You voted: ' + (pendingVote === 'y' ? 'Approve' : 'Reject'), {
+            prepend: false
+          });
+          pendingVote = null;
+          isVoting = false;
+          return;
+        } else if (messageLower === 'n') {
+          // Cancel the vote, go back to initial vote state
+          pendingVote = null;
+          log('Vote cancelled. Vote on team ("y" to approve / "n" to reject)', {
+            prepend: false
+          });
+          return;
+        }
+      }
+      
+      // Handle initial vote (approve/reject)
+      if (isVoting && pendingVote === null && (messageLower === 'y' || messageLower === 'n')) {
+        // Store the vote and request confirmation
+        pendingVote = messageLower;
+        log('You selected: ' + (messageLower === 'y' ? 'Approve' : 'Reject') + '. Confirm? ("y"/"n")', {
           prepend: false
         });
-        isVoting = false;
         return;
       }
       
@@ -800,6 +822,7 @@ $(function() {
   socket.on('request vote', (data) => {
     if (data.team && data.leader) {
       isVoting = true;
+      pendingVote = null; // Reset any pending vote
       log('Vote on team: ' + data.team.join(', ') + ' ("y"/"n")', {
         prepend: false
       });
@@ -809,6 +832,10 @@ $(function() {
   // Handle vote result
   socket.on('vote result', (data) => {
     if (data.approved !== undefined) {
+      // Reset voting state
+      isVoting = false;
+      pendingVote = null;
+      
       // Display individual votes
       var approveText = 'Approve: ' + (data.approveVoters && data.approveVoters.length > 0 ? data.approveVoters.join(', ') : 'None');
       var rejectText = 'Reject: ' + (data.rejectVoters && data.rejectVoters.length > 0 ? data.rejectVoters.join(', ') : 'None');
