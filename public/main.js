@@ -809,6 +809,17 @@ $(function() {
   // Handle vote result
   socket.on('vote result', (data) => {
     if (data.approved !== undefined) {
+      // Display individual votes
+      var approveText = 'Approve: ' + (data.approveVoters && data.approveVoters.length > 0 ? data.approveVoters.join(', ') : 'None');
+      var rejectText = 'Reject: ' + (data.rejectVoters && data.rejectVoters.length > 0 ? data.rejectVoters.join(', ') : 'None');
+      
+      log(approveText, {
+        prepend: false
+      });
+      log(rejectText, {
+        prepend: false
+      });
+      
       var resultText = 'Vote result: ';
       if (data.approved) {
         resultText += 'APPROVED (' + data.approveCount + ' approve, ' + data.rejectCount + ' reject). Mission ' + currentQuestIndex + ' begins!';

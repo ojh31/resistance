@@ -418,14 +418,19 @@ io.on('connection', (socket) => {
       });
       
       if (allVoted) {
-        // Count votes
+        // Count votes and collect voter identities
         var approveCount = 0;
         var rejectCount = 0;
+        var approveVoters = [];
+        var rejectVoters = [];
+        
         Object.keys(currentVote.votes).forEach(function(username) {
           if (currentVote.votes[username] === 'y') {
             approveCount++;
+            approveVoters.push(username);
           } else {
             rejectCount++;
+            rejectVoters.push(username);
           }
         });
         
@@ -433,11 +438,13 @@ io.on('connection', (socket) => {
         var majority = Math.floor(totalVotes / 2) + 1;
         var approved = approveCount >= majority;
         
-        // Broadcast result
+        // Broadcast result with individual votes
         io.emit('vote result', {
           approved: approved,
           approveCount: approveCount,
           rejectCount: rejectCount,
+          approveVoters: approveVoters,
+          rejectVoters: rejectVoters,
           team: currentVote.team,
           leader: currentVote.leader
         });
