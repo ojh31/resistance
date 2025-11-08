@@ -516,36 +516,28 @@ $(function() {
       }
       
       // Handle team selection confirmation
-      if (isSelectingTeam && username === connectedUsers[0]) {
-        if (messageLower === 'y') {
-          if (selectedTeam.length === requiredTeamSize) {
-            // Confirm team selection
-            socket.emit('confirm team', {
-              team: selectedTeam
-            });
-            
-            log('Team confirmed: ' + selectedTeam.join(', '), {
-              prepend: false
-            });
-            
-            // Reset team selection state
-            isSelectingTeam = false;
-            selectedTeam = [];
-            $('.teamPreview').remove();
-            updatePlayerCircle();
-          } else {
-            log('Please select exactly ' + requiredTeamSize + ' players before confirming.', {
-              prepend: false
-            });
-          }
-          return;
-        } else {
-          // Reject invalid input during team selection
-          log('Please respond with "y" to confirm your team selection', {
+      if (isSelectingTeam && username === connectedUsers[0] && messageLower === 'y') {
+        if (selectedTeam.length === requiredTeamSize) {
+          // Confirm team selection
+          socket.emit('confirm team', {
+            team: selectedTeam
+          });
+          
+          log('Team confirmed: ' + selectedTeam.join(', '), {
             prepend: false
           });
-          return;
+          
+          // Reset team selection state
+          isSelectingTeam = false;
+          selectedTeam = [];
+          $('.teamPreview').remove();
+          updatePlayerCircle();
+        } else {
+          log('Please select exactly ' + requiredTeamSize + ' players before confirming.', {
+            prepend: false
+          });
         }
+        return;
       }
       
       addChatMessage({
