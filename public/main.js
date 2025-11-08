@@ -175,8 +175,8 @@ $(function() {
       var $questSize = $('<div class="questTokenSize">' + questSize + '</div>');
       $questToken.append($questSize);
       
-      // Add active marker to the first quest token
-      if (i === 1) {
+      // Add active marker based on currentQuestIndex
+      if (i === currentQuestIndex) {
         $questToken.addClass('active');
         var $marker = $('<div class="questTokenMarker"></div>');
         $questToken.append($marker);
@@ -802,6 +802,16 @@ $(function() {
         // Reset vote track to 1 for next quest
         currentVoteTrack = 1;
         initializeVoteTrack();
+        
+        // Rotate leader (server handles this, wait for user list update)
+        // After user list updates, request team selection for next quest
+        setTimeout(function() {
+          if (currentQuestIndex <= 5) {
+            socket.emit('start team selection', {
+              questIndex: currentQuestIndex
+            });
+          }
+        }, 1500); // Wait for user list to update
       } else {
         resultText += 'REJECTED (' + data.approveCount + ' approve, ' + data.rejectCount + ' reject).';
         log(resultText, {

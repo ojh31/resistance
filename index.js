@@ -442,17 +442,15 @@ io.on('connection', (socket) => {
           leader: currentVote.leader
         });
         
-        // If rejected, rotate leader
-        if (!approved) {
-          if (players.length > 1) {
-            var firstPlayer = players.shift();
-            players.push(firstPlayer);
-            
-            // Send updated user list to all clients
-            io.emit('user list', {
-              users: getUserList()
-            });
-          }
+        // Rotate leader (both for approved and rejected)
+        if (players.length > 1) {
+          var firstPlayer = players.shift();
+          players.push(firstPlayer);
+          
+          // Send updated user list to all clients
+          io.emit('user list', {
+            users: getUserList()
+          });
         }
         
         // Clear current vote
