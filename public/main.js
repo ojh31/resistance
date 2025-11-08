@@ -291,7 +291,7 @@ $(function() {
       selectedTeam = [];
       
       // Send private message to leader
-      log('You are the leader. Select a team of ' + questSize + ' players for Quest ' + questIndex + '. Click on player tiles to select them, then type "y" and press enter to confirm.', {
+      log('You are the leader. Select a team of ' + questSize + ' players for Quest ' + questIndex + '. Click on player tiles to select them ("y" to confirm)', {
         prepend: false
       });
       
@@ -800,7 +800,7 @@ $(function() {
   socket.on('request vote', (data) => {
     if (data.team && data.leader) {
       isVoting = true;
-      log('Vote on team: ' + data.team.join(', ') + '. Type "y" to approve or "n" to reject.', {
+      log('Vote on team: ' + data.team.join(', ') + ' ("y"/"n")', {
         prepend: false
       });
     }
