@@ -21,7 +21,9 @@ var roleSets = [{}]; // Array to track role sets: [{username: role}, ...]
 var roleAssignments = {}; // Object to track actual role assignments: {username: role}
 
 // Voting state
-var currentVote = null; // {team: [...], leader: '...', votes: {username: 'y'|'n'}}
+var currentVote = null; // {team: [...], leader: '...', votes: {username: 'y'|'n'}, questIndex: number}
+var currentQuestVote = null; // {questIndex: number, team: [...], votes: {username: 'y'|'n'}}
+var currentQuestIndex = 1; // Track current quest index
 
 // Constants
 var REVEAL_TEXT_NOTHING = 'You know nothing, good luck!';
@@ -386,7 +388,8 @@ io.on('connection', (socket) => {
       currentVote = {
         team: data.team,
         leader: socket.username,
-        votes: {}
+        votes: {},
+        questIndex: currentQuestIndex
       };
       
       // Broadcast the selected team to all players and request votes
@@ -449,6 +452,30 @@ io.on('connection', (socket) => {
           leader: currentVote.leader
         });
         
+        // If approved, start quest voting instead of immediately proceeding
+        if (approved && currentVote.questIndex) {
+          // Initialize quest voting
+          currentQuestVote = {
+            questIndex: currentVote.questIndex,
+            team: currentVote.team,
+            votes: {}
+          };
+          
+          // Request quest votes from team members only
+          currentVote.team.forEach(function(teamMember) {
+            var teamPlayer = players.find(function(p) { return p.username === teamMember; });
+            if (teamPlayer) {
+              var teamPlayerSocket = io.sockets.connected[teamPlayer.socketId];
+              if (teamPlayerSocket) {
+                teamPlayerSocket.emit('request quest vote', {
+                  questIndex: currentVote.questIndex,
+                  team: currentVote.team
+                });
+              }
+            }
+          });
+        }
+        
         // Rotate leader (both for approved and rejected)
         if (players.length > 1) {
           var firstPlayer = players.shift();
@@ -466,9 +493,63 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Handle quest vote submission
+  socket.on('submit quest vote', (data) => {
+    if (currentQuestVote && data.vote && (data.vote === 'y' || data.vote === 'n')) {
+      // Only accept votes from team members
+      if (currentQuestVote.team.indexOf(socket.username) === -1) {
+        return;
+      }
+      
+      // Record the vote
+      currentQuestVote.votes[socket.username] = data.vote;
+      
+      // Check if all team members have voted
+      var allVoted = true;
+      currentQuestVote.team.forEach(function(teamMember) {
+        if (!currentQuestVote.votes[teamMember]) {
+          allVoted = false;
+        }
+      });
+      
+      if (allVoted) {
+        // Count votes
+        var successCount = 0;
+        var failCount = 0;
+        
+        Object.keys(currentQuestVote.votes).forEach(function(username) {
+          if (currentQuestVote.votes[username] === 'y') {
+            successCount++;
+          } else {
+            failCount++;
+          }
+        });
+        
+        // Broadcast quest result to all players
+        io.emit('quest result', {
+          questIndex: currentQuestVote.questIndex,
+          team: currentQuestVote.team,
+          successCount: successCount,
+          failCount: failCount
+        });
+        
+        // Increment quest index for next quest
+        currentQuestIndex++;
+        
+        // Clear quest vote
+        currentQuestVote = null;
+      }
+    }
+  });
+
   // Handle request to start team selection for a quest
   socket.on('start team selection', (data) => {
     if (data.questIndex && players.length > 0) {
+      // Update current quest index if provided
+      if (data.questIndex) {
+        currentQuestIndex = data.questIndex;
+      }
+      
       var leader = players[0];
       var leaderSocket = io.sockets.connected[leader.socketId];
       if (leaderSocket) {
