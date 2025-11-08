@@ -17,7 +17,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 var numUsers = 0;
 var players = []; // Array to track connected players: {socketId, username}
-var roleSelections = {}; // Object to track role selections: {username: role}
+var roleSets = [{}]; // Array to track role sets: [{username: role}, ...]
 var roleAssignments = {}; // Object to track actual role assignments: {username: role}
 
 // Constants
@@ -268,9 +268,9 @@ io.on('connection', (socket) => {
       users: getUserList()
     });
     
-    // Also send current role selections
-    io.emit('role selections updated', {
-      selections: roleSelections
+    // Also send current role sets
+    io.emit('role sets updated', {
+      roleSets: roleSets
     });
   });
 
@@ -302,10 +302,12 @@ io.on('connection', (socket) => {
         numUsers: numUsers
       });
       
-      // Remove user's role selection if they had one
-      if (roleSelections[socket.username]) {
-        delete roleSelections[socket.username];
-      }
+      // Remove user from all role sets
+      roleSets.forEach(function(roleSet) {
+        if (roleSet[socket.username]) {
+          delete roleSet[socket.username];
+        }
+      });
       
       // Remove user's role assignment if they had one
       if (roleAssignments[socket.username]) {
@@ -317,9 +319,9 @@ io.on('connection', (socket) => {
         users: getUserList()
       });
       
-      // Also send updated role selections
-      io.emit('role selections updated', {
-        selections: roleSelections
+      // Also send updated role sets
+      io.emit('role sets updated', {
+        roleSets: roleSets
       });
     }
   });
@@ -329,26 +331,41 @@ io.on('connection', (socket) => {
     socket.emit('user list', {
       users: getUserList()
     });
-    // Also send current role selections
-    socket.emit('role selections updated', {
-      selections: roleSelections
+    // Also send current role sets
+    socket.emit('role sets updated', {
+      roleSets: roleSets
     });
   });
 
-  // Handle role selection change
+  // Handle role selection change in a specific role set
   socket.on('role selection changed', (data) => {
-    if (data.username && data.role !== undefined) {
-      if (data.role === '') {
-        delete roleSelections[data.username];
-      } else {
-        roleSelections[data.username] = data.role;
+    if (data.roleSetIndex !== undefined && data.username && data.role !== undefined) {
+      var roleSetIndex = parseInt(data.roleSetIndex);
+      // Ensure the role set exists
+      while (roleSets.length <= roleSetIndex) {
+        roleSets.push({});
       }
       
-      // Broadcast updated selections to all clients
-      io.emit('role selections updated', {
-        selections: roleSelections
+      if (data.role === '') {
+        delete roleSets[roleSetIndex][data.username];
+      } else {
+        roleSets[roleSetIndex][data.username] = data.role;
+      }
+      
+      // Broadcast updated role sets to all clients
+      io.emit('role sets updated', {
+        roleSets: roleSets
       });
     }
+  });
+
+  // Handle adding a new role set
+  socket.on('add role set', () => {
+    roleSets.push({});
+    // Broadcast updated role sets to all clients
+    io.emit('role sets updated', {
+      roleSets: roleSets
+    });
   });
 
   // Handle role assignment request

@@ -35,53 +35,91 @@ $(function() {
   var $playerRoles = $('#playerRoles');
   var $assignButton = $('#assignButton');
 
-  // Role selections state (username -> role)
-  var roleSelections = {};
+  // Role sets state - array of role set objects, each is {username: role}
+  var roleSets = [{}]; // Start with one empty role set
 
   // Update the role assignment UI
   const updateRoleAssignmentUI = () => {
     $playerRoles.empty();
     
-    // Create a dropdown for each connected player
-    connectedUsers.forEach(function(user) {
-      var $playerItem = $('<div class="playerRoleItem"></div>');
-      var $roleSelect = $('<select></select>').attr('data-username', user);
+    // Create a row for each role set
+    roleSets.forEach(function(roleSet, roleSetIndex) {
+      var $roleSetRow = $('<div class="roleSetRow"></div>');
       
-      // Add empty option
-      $('<option></option>').attr('value', '').text('No role').appendTo($roleSelect);
-      
-      // Add all available roles
-      availableRoles.forEach(function(role) {
-        var $option = $('<option></option>').attr('value', role).text(role);
-        // Mark as selected if this role is already selected for this user
-        if (roleSelections[user] === role) {
-          $option.attr('selected', 'selected');
-        }
-        $option.appendTo($roleSelect);
-      });
-      
-      // Handle dropdown change - sync with server
-      $roleSelect.on('change', function() {
-        var selectedRole = $(this).val();
-        socket.emit('role selection changed', {
-          username: user,
-          role: selectedRole || ''
+      // Create a dropdown for each connected player in this role set
+      connectedUsers.forEach(function(user) {
+        var $playerItem = $('<div class="playerRoleItem"></div>');
+        var $roleSelect = $('<select></select>')
+          .attr('data-username', user)
+          .attr('data-role-set-index', roleSetIndex);
+        
+        // Add empty option
+        $('<option></option>').attr('value', '').text('No role').appendTo($roleSelect);
+        
+        // Add all available roles
+        availableRoles.forEach(function(role) {
+          var $option = $('<option></option>').attr('value', role).text(role);
+          // Mark as selected if this role is already selected for this user in this role set
+          if (roleSet[user] === role) {
+            $option.attr('selected', 'selected');
+          }
+          $option.appendTo($roleSelect);
         });
+        
+        // Handle dropdown change - sync with server
+        $roleSelect.on('change', function() {
+          var selectedRole = $(this).val();
+          var username = $(this).attr('data-username');
+          var index = parseInt($(this).attr('data-role-set-index'));
+          // Emit change to server
+          socket.emit('role selection changed', {
+            roleSetIndex: index,
+            username: username,
+            role: selectedRole || ''
+          });
+        });
+        
+        $playerItem.append($roleSelect);
+        $roleSetRow.append($playerItem);
       });
       
-      $playerItem.append($roleSelect);
-      $playerRoles.append($playerItem);
+      $playerRoles.append($roleSetRow);
     });
+    
+    // Add "Add Role Set" button after the last role set row
+    var $addRoleSetButton = $('<button class="addRoleSetButton" id="addRoleSetButton">Add Role Set</button>');
+    $addRoleSetButton.on('click', function() {
+      socket.emit('add role set'); // Request server to add a new role set
+    });
+    $playerRoles.append($addRoleSetButton);
   }
 
   // Handle assign button click
   $assignButton.on('click', () => {
-    // Collect all selected roles from roleSelections state (duplicates allowed)
+    // Filter out empty role sets
+    var validRoleSets = roleSets.filter(function(roleSet) {
+      return Object.keys(roleSet).some(function(user) {
+        return roleSet[user] && roleSet[user] !== '';
+      });
+    });
+    
+    if (validRoleSets.length === 0) {
+      log('Please select at least one role in at least one role set', {
+        prepend: true
+      });
+      return;
+    }
+    
+    // Randomly select one role set uniformly
+    var selectedRoleSetIndex = Math.floor(Math.random() * validRoleSets.length);
+    var selectedRoleSet = validRoleSets[selectedRoleSetIndex];
+    
+    // Collect all selected roles from the randomly selected role set (duplicates allowed)
     var selectedRoles = [];
     
     connectedUsers.forEach(function(user) {
-      if (roleSelections[user] && roleSelections[user] !== '') {
-        selectedRoles.push(roleSelections[user]);
+      if (selectedRoleSet[user] && selectedRoleSet[user] !== '') {
+        selectedRoles.push(selectedRoleSet[user]);
       }
     });
     
@@ -384,10 +422,10 @@ $(function() {
     updateRoleAssignmentUI();
   });
 
-  // Whenever the server emits 'role selections updated', sync the selections
-  socket.on('role selections updated', (data) => {
-    if (data.selections) {
-      roleSelections = data.selections;
+  // Whenever the server emits 'role sets updated', sync the role sets
+  socket.on('role sets updated', (data) => {
+    if (data.roleSets && Array.isArray(data.roleSets)) {
+      roleSets = data.roleSets;
       updateRoleAssignmentUI();
     }
   });

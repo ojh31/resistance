@@ -111,10 +111,16 @@ ul {
 
 .playerRoles {
   display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin-bottom: 10px;
+}
+
+.roleSetRow {
+  display: flex;
   flex-wrap: wrap;
   gap: 10px;
   justify-content: center;
-  margin-bottom: 10px;
 }
 
 .playerRoleItem {
@@ -153,6 +159,26 @@ ul {
 
 .assignButton:active {
   background-color: #3d8b40;
+}
+
+.addRoleSetButton {
+  background-color: #2196F3;
+  border: none;
+  color: white;
+  cursor: pointer;
+  display: block;
+  font-size: 90%;
+  font-weight: 600;
+  margin: 0 auto;
+  padding: 8px 16px;
+}
+
+.addRoleSetButton:hover {
+  background-color: #1976D2;
+}
+
+.addRoleSetButton:active {
+  background-color: #1565C0;
 }
 
 /* Font */
