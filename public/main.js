@@ -140,6 +140,39 @@ $(function() {
     }
     
     $questTokensContainer.append($questTokens);
+    
+    // Initialize vote track underneath quest tokens
+    initializeVoteTrack();
+  };
+
+  // Initialize vote track
+  const initializeVoteTrack = () => {
+    // Remove existing vote track if any
+    $questTokensContainer.find('.voteTrack').remove();
+    
+    var $voteTrack = $('<div class="voteTrack"></div>');
+    var $voteTrackLabel = $('<div class="voteTrackLabel">Vote Track</div>');
+    $voteTrack.append($voteTrackLabel);
+    
+    var $voteTrackTiles = $('<div class="voteTrackTiles"></div>');
+    
+    // Create 5 vote track tiles
+    for (var i = 1; i <= 5; i++) {
+      var $voteTile = $('<div class="voteTrackTile"></div>')
+        .text(i);
+      
+      // Add active highlight to the first vote tile
+      if (i === 1) {
+        $voteTile.addClass('active');
+        var $marker = $('<div class="questTokenMarker"></div>');
+        $voteTile.append($marker);
+      }
+      
+      $voteTrackTiles.append($voteTile);
+    }
+    
+    $voteTrack.append($voteTrackTiles);
+    $questTokensContainer.append($voteTrack);
   };
 
   // Update the role assignment UI
