@@ -20,6 +20,9 @@ var players = []; // Array to track connected players: {socketId, username}
 var roleSets = [{}]; // Array to track role sets: [{username: role}, ...]
 var roleAssignments = {}; // Object to track actual role assignments: {username: role}
 
+// Voting state
+var currentVote = null; // {team: [...], leader: '...', votes: {username: 'y'|'n'}}
+
 // Constants
 var REVEAL_TEXT_NOTHING = 'You know nothing, good luck!';
 
@@ -373,6 +376,106 @@ io.on('connection', (socket) => {
     if (data.selectedRoles && Array.isArray(data.selectedRoles) && 
         data.players && Array.isArray(data.players)) {
       assignRoles(data.selectedRoles, data.players);
+    }
+  });
+
+  // Handle team selection confirmation
+  socket.on('confirm team', (data) => {
+    if (data.team && Array.isArray(data.team)) {
+      // Initialize voting
+      currentVote = {
+        team: data.team,
+        leader: socket.username,
+        votes: {}
+      };
+      
+      // Broadcast the selected team to all players and request votes
+      io.emit('team selected', {
+        leader: socket.username,
+        team: data.team
+      });
+      
+      // Request votes from all players
+      io.emit('request vote', {
+        team: data.team,
+        leader: socket.username
+      });
+    }
+  });
+
+  // Handle vote submission
+  socket.on('submit vote', (data) => {
+    if (currentVote && data.vote && (data.vote === 'y' || data.vote === 'n')) {
+      // Record the vote
+      currentVote.votes[socket.username] = data.vote;
+      
+      // Check if all players have voted
+      var allVoted = true;
+      players.forEach(function(player) {
+        if (!currentVote.votes[player.username]) {
+          allVoted = false;
+        }
+      });
+      
+      if (allVoted) {
+        // Count votes and collect voter identities
+        var approveCount = 0;
+        var rejectCount = 0;
+        var approveVoters = [];
+        var rejectVoters = [];
+        
+        Object.keys(currentVote.votes).forEach(function(username) {
+          if (currentVote.votes[username] === 'y') {
+            approveCount++;
+            approveVoters.push(username);
+          } else {
+            rejectCount++;
+            rejectVoters.push(username);
+          }
+        });
+        
+        var totalVotes = approveCount + rejectCount;
+        var majority = Math.floor(totalVotes / 2) + 1;
+        var approved = approveCount >= majority;
+        
+        // Broadcast result with individual votes
+        io.emit('vote result', {
+          approved: approved,
+          approveCount: approveCount,
+          rejectCount: rejectCount,
+          approveVoters: approveVoters,
+          rejectVoters: rejectVoters,
+          team: currentVote.team,
+          leader: currentVote.leader
+        });
+        
+        // Rotate leader (both for approved and rejected)
+        if (players.length > 1) {
+          var firstPlayer = players.shift();
+          players.push(firstPlayer);
+          
+          // Send updated user list to all clients
+          io.emit('user list', {
+            users: getUserList()
+          });
+        }
+        
+        // Clear current vote
+        currentVote = null;
+      }
+    }
+  });
+
+  // Handle request to start team selection for a quest
+  socket.on('start team selection', (data) => {
+    if (data.questIndex && players.length > 0) {
+      var leader = players[0];
+      var leaderSocket = io.sockets.connected[leader.socketId];
+      if (leaderSocket) {
+        leaderSocket.emit('request team selection', {
+          questIndex: data.questIndex
+        });
+      }
     }
   });
 });
