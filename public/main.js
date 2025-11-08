@@ -73,6 +73,16 @@ $(function() {
         });
       
       $circle.append($playerItem);
+      
+      // Add crown symbol over the first player (leader)
+      if (index === 0) {
+        var $crown = $('<div class="leaderCrown">♔</div>')
+          .css({
+            left: (x + 30) + 'px', // Center of the player item (x + 30 = center of 60px item)
+            top: (y - 15) + 'px'   // Above the player item
+          });
+        $circle.append($crown);
+      }
     });
     
     $playerCircleContainer.append($circle);
