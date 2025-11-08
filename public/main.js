@@ -50,6 +50,10 @@ $(function() {
   var isVoting = false;
   var pendingVote = null; // Stores the vote ('y' or 'n') waiting for confirmation
   var currentVoteTrack = 1;
+  
+  // Quest voting state
+  var isQuestVoting = false;
+  var pendingQuestVote = null; // Stores the quest vote ('y' or 'n') waiting for confirmation
 
   // Update the player circle visualization
   const updatePlayerCircle = () => {
@@ -468,6 +472,53 @@ $(function() {
       $inputMessage.val('');
       var messageLower = message.toLowerCase().trim();
       
+      // Handle quest vote confirmation
+      if (isQuestVoting && pendingQuestVote !== null) {
+        if (messageLower === 'y') {
+          // Confirm and submit the pending quest vote
+          socket.emit('submit quest vote', {
+            vote: pendingQuestVote
+          });
+          log('You voted: ' + (pendingQuestVote === 'y' ? 'Success' : 'Fail'), {
+            prepend: false
+          });
+          pendingQuestVote = null;
+          isQuestVoting = false;
+          return;
+        } else if (messageLower === 'n') {
+          // Cancel the quest vote, go back to initial quest vote state
+          pendingQuestVote = null;
+          log('Quest vote cancelled. You were selected for quest ' + currentQuestIndex + '. Succeed? ("y"/"n")', {
+            prepend: false
+          });
+          return;
+        } else {
+          // Reject invalid input during quest vote confirmation
+          log('Please respond with "y" or "n"', {
+            prepend: false
+          });
+          return;
+        }
+      }
+      
+      // Handle initial quest vote (succeed/fail)
+      if (isQuestVoting && pendingQuestVote === null) {
+        if (messageLower === 'y' || messageLower === 'n') {
+          // Store the quest vote and request confirmation
+          pendingQuestVote = messageLower;
+          log('You have selected ' + (messageLower === 'y' ? 'Success' : 'Fail') + '. Confirm? ("y"/"n")', {
+            prepend: false
+          });
+          return;
+        } else {
+          // Reject invalid input during quest voting
+          log('Please respond with "y" to succeed or "n" to fail', {
+            prepend: false
+          });
+          return;
+        }
+      }
+      
       // Handle vote confirmation
       if (isVoting && pendingVote !== null) {
         if (messageLower === 'y') {
@@ -843,6 +894,20 @@ $(function() {
     }
   });
 
+  // Handle quest vote request
+  socket.on('request quest vote', (data) => {
+    if (data.questIndex && data.team) {
+      // Check if current user is on the team
+      if (data.team.indexOf(username) !== -1) {
+        isQuestVoting = true;
+        pendingQuestVote = null; // Reset any pending quest vote
+        log('You were selected for quest ' + data.questIndex + '. Succeed? ("y"/"n")', {
+          prepend: false
+        });
+      }
+    }
+  });
+
   // Handle vote result
   socket.on('vote result', (data) => {
     if (data.approved !== undefined) {
@@ -868,22 +933,8 @@ $(function() {
           prepend: false
         });
         
-        // Increment quest token
-        incrementQuestToken();
-        
-        // Reset vote track to 1 for next quest
-        currentVoteTrack = 1;
-        initializeVoteTrack();
-        
-        // Rotate leader (server handles this, wait for user list update)
-        // After user list updates, request team selection for next quest
-        setTimeout(function() {
-          if (currentQuestIndex <= 5) {
-            socket.emit('start team selection', {
-              questIndex: currentQuestIndex
-            });
-          }
-        }, 1500); // Wait for user list to update
+        // Quest voting will be initiated by server, don't proceed here
+        // The quest result handler will handle proceeding to next quest
       } else {
         resultText += 'REJECTED (' + data.approveCount + ' approve, ' + data.rejectCount + ' reject).';
         log(resultText, {
@@ -909,6 +960,39 @@ $(function() {
           });
         }
       }
+    }
+  });
+
+  // Handle quest result
+  socket.on('quest result', (data) => {
+    if (data.questIndex && data.successCount !== undefined && data.failCount !== undefined) {
+      // Reset quest voting state
+      isQuestVoting = false;
+      pendingQuestVote = null;
+      
+      // Publish quest results to everyone
+      log('Quest ' + data.questIndex + ' results: ' + data.successCount + ' Success, ' + data.failCount + ' Fail', {
+        prepend: false
+      });
+      
+      // Sync quest index with server, then increment
+      currentQuestIndex = data.questIndex;
+      // Increment quest token (this will also increment currentQuestIndex)
+      incrementQuestToken();
+      
+      // Reset vote track to 1 for next quest
+      currentVoteTrack = 1;
+      initializeVoteTrack();
+      
+      // Rotate leader (server handles this, wait for user list update)
+      // After user list updates, request team selection for next quest
+      setTimeout(function() {
+        if (currentQuestIndex <= 5) {
+          socket.emit('start team selection', {
+            questIndex: currentQuestIndex
+          });
+        }
+      }, 1500); // Wait for user list to update
     }
   });
 
