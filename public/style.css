@@ -159,6 +159,18 @@ ul {
   border-width: 3px;
 }
 
+.questToken.success {
+  border-color: #2196F3;
+  border-width: 3px;
+  background-color: rgba(33, 150, 243, 0.1);
+}
+
+.questToken.fail {
+  border-color: #f44336;
+  border-width: 3px;
+  background-color: rgba(244, 67, 54, 0.1);
+}
+
 .questTokenMarker {
   position: absolute;
   top: -8px;

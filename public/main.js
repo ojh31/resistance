@@ -54,6 +54,9 @@ $(function() {
   // Quest voting state
   var isQuestVoting = false;
   var pendingQuestVote = null; // Stores the quest vote ('y' or 'n') waiting for confirmation
+  
+  // Quest results tracking: {questIndex: 'success'|'fail'}
+  var questResults = {};
 
   // Update the player circle visualization
   const updatePlayerCircle = () => {
@@ -200,6 +203,13 @@ $(function() {
         $questToken.addClass('active');
         var $marker = $('<div class="questTokenMarker"></div>');
         $questToken.append($marker);
+      }
+      
+      // Add success/fail styling based on quest results
+      if (questResults[i] === 'success') {
+        $questToken.addClass('success');
+      } else if (questResults[i] === 'fail') {
+        $questToken.addClass('fail');
       }
       
       $questTokens.append($questToken);
@@ -970,6 +980,12 @@ $(function() {
       isQuestVoting = false;
       pendingQuestVote = null;
       
+      // Determine quest success/failure: if there's a single FAIL vote, quest fails
+      var questSucceeded = data.failCount === 0;
+      
+      // Store quest result
+      questResults[data.questIndex] = questSucceeded ? 'success' : 'fail';
+      
       // Publish quest results to everyone
       log('Quest ' + data.questIndex + ' results: ' + data.successCount + ' Success, ' + data.failCount + ' Fail', {
         prepend: false
@@ -979,6 +995,9 @@ $(function() {
       currentQuestIndex = data.questIndex;
       // Increment quest token (this will also increment currentQuestIndex)
       incrementQuestToken();
+      
+      // Re-initialize quest tokens to show success/fail styling
+      initializeQuestTokens();
       
       // Reset vote track to 1 for next quest
       currentVoteTrack = 1;
