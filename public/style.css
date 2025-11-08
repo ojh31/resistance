@@ -237,6 +237,17 @@ ul {
   word-wrap: break-word;
   overflow: hidden;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  transition: border 0.2s ease, transform 0.1s ease;
+}
+
+.playerCircleItem.clickable:hover {
+  transform: scale(1.1);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
+}
+
+.playerCircleItem.selected {
+  border: 3px solid #FFD700 !important;
+  box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
 }
 
 .leaderCrown {

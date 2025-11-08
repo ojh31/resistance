@@ -375,4 +375,28 @@ io.on('connection', (socket) => {
       assignRoles(data.selectedRoles, data.players);
     }
   });
+
+  // Handle team selection confirmation
+  socket.on('confirm team', (data) => {
+    if (data.team && Array.isArray(data.team)) {
+      // Broadcast the selected team to all players
+      io.emit('team selected', {
+        leader: socket.username,
+        team: data.team
+      });
+    }
+  });
+
+  // Handle request to start team selection for a quest
+  socket.on('start team selection', (data) => {
+    if (data.questIndex && players.length > 0) {
+      var leader = players[0];
+      var leaderSocket = io.sockets.connected[leader.socketId];
+      if (leaderSocket) {
+        leaderSocket.emit('request team selection', {
+          questIndex: data.questIndex
+        });
+      }
+    }
+  });
 });

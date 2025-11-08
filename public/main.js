@@ -39,6 +39,12 @@ $(function() {
 
   // Role sets state - array of role set objects, each is {username: role}
   var roleSets = [{}]; // Start with one empty role set
+  
+  // Team selection state
+  var isSelectingTeam = false;
+  var selectedTeam = [];
+  var requiredTeamSize = 0;
+  var currentQuestIndex = 1;
 
   // Update the player circle visualization
   const updatePlayerCircle = () => {
@@ -71,7 +77,43 @@ $(function() {
           top: y + 'px',
           backgroundColor: getUsernameColor(user),
           color: '#fff'
+        })
+        .data('username', user);
+      
+      // Make clickable if user is leader and team selection is active
+      if (isSelectingTeam && username === connectedUsers[0]) {
+        $playerItem.addClass('clickable');
+        $playerItem.css('cursor', 'pointer');
+        
+        // Check if this player is selected
+        if (selectedTeam.indexOf(user) !== -1) {
+          $playerItem.addClass('selected');
+          $playerItem.css('border', '3px solid #FFD700');
+        }
+        
+        // Add click handler to toggle selection
+        $playerItem.on('click', function() {
+          var clickedUser = $(this).data('username');
+          var index = selectedTeam.indexOf(clickedUser);
+          
+          if (index === -1) {
+            // Add to selection if not already selected and under size limit
+            if (selectedTeam.length < requiredTeamSize) {
+              selectedTeam.push(clickedUser);
+              $(this).addClass('selected');
+              $(this).css('border', '3px solid #FFD700');
+            }
+          } else {
+            // Remove from selection
+            selectedTeam.splice(index, 1);
+            $(this).removeClass('selected');
+            $(this).css('border', '2px solid #333');
+          }
+          
+          // Update preview
+          updateTeamPreview();
         });
+      }
       
       $circle.append($playerItem);
       
@@ -175,6 +217,59 @@ $(function() {
     $questTokensContainer.append($voteTrack);
   };
 
+  // Request team selection from leader
+  const requestTeamSelection = (questIndex) => {
+    if (connectedUsers.length === 0) return;
+    
+    var leader = connectedUsers[0];
+    var numPlayers = connectedUsers.length;
+    if (numPlayers < 5) numPlayers = 5;
+    if (numPlayers > 10) numPlayers = 10;
+    
+    var questSize = getQuestSize(questIndex, numPlayers);
+    currentQuestIndex = questIndex;
+    requiredTeamSize = questSize;
+    
+    // Only activate for the leader
+    if (username === leader) {
+      isSelectingTeam = true;
+      selectedTeam = [];
+      
+      // Send private message to leader
+      log('You are the leader. Select a team of ' + questSize + ' players for Quest ' + questIndex + '. Click on player tiles to select them, then type "y" and press enter to confirm.', {
+        prepend: false
+      });
+      
+      // Update player circle to make tiles clickable
+      updatePlayerCircle();
+      
+      // Show initial preview
+      updateTeamPreview();
+    }
+  };
+
+  // Update team selection preview
+  const updateTeamPreview = () => {
+    // Remove existing preview
+    $('.teamPreview').remove();
+    
+    if (!isSelectingTeam || username !== connectedUsers[0]) {
+      return;
+    }
+    
+    var previewText = 'Selected team (' + selectedTeam.length + '/' + requiredTeamSize + '): ';
+    if (selectedTeam.length === 0) {
+      previewText += 'None';
+    } else {
+      previewText += selectedTeam.join(', ');
+    }
+    
+    var $preview = $('<li class="log teamPreview">' + previewText + '</li>');
+    addMessageElement($preview, {
+      prepend: false
+    });
+  };
+
   // Update the role assignment UI
   const updateRoleAssignmentUI = () => {
     $playerRoles.empty();
@@ -242,7 +337,7 @@ $(function() {
     
     if (validRoleSets.length === 0) {
       log('Please select at least one role in at least one role set', {
-        prepend: true
+        prepend: false
       });
       return;
     }
@@ -262,7 +357,7 @@ $(function() {
     
     if (selectedRoles.length === 0) {
       log('Please select at least one role', {
-        prepend: true
+        prepend: false
       });
       return;
     }
@@ -272,6 +367,13 @@ $(function() {
       selectedRoles: selectedRoles,
       players: connectedUsers
     });
+    
+    // After roles are assigned, automatically request team selection for quest 1
+    setTimeout(function() {
+      socket.emit('start team selection', {
+        questIndex: 1
+      });
+    }, 1000); // Small delay to ensure roles are assigned first
   });
 
   const addParticipantsMessage = (data) => {
@@ -308,6 +410,32 @@ $(function() {
     // if there is a non-empty message and a socket connection
     if (message && connected) {
       $inputMessage.val('');
+      
+      // Handle team selection confirmation
+      if (isSelectingTeam && username === connectedUsers[0] && message.toLowerCase().trim() === 'y') {
+        if (selectedTeam.length === requiredTeamSize) {
+          // Confirm team selection
+          socket.emit('confirm team', {
+            team: selectedTeam
+          });
+          
+          log('Team confirmed: ' + selectedTeam.join(', '), {
+            prepend: false
+          });
+          
+          // Reset team selection state
+          isSelectingTeam = false;
+          selectedTeam = [];
+          $('.teamPreview').remove();
+          updatePlayerCircle();
+        } else {
+          log('Please select exactly ' + requiredTeamSize + ' players before confirming.', {
+            prepend: false
+          });
+        }
+        return;
+      }
+      
       addChatMessage({
         username: username,
         message: message
@@ -480,7 +608,7 @@ $(function() {
     // Display the welcome message
     var message = "Welcome, " + username;
     log(message, {
-      prepend: true
+      prepend: false
     });
     addParticipantsMessage(data);
     // Initialize quest tokens
@@ -561,6 +689,11 @@ $(function() {
     updateRoleAssignmentUI();
     updatePlayerCircle();
     initializeQuestTokens(); // Update quest sizes based on number of players
+    
+    // Update team preview if team selection is active
+    if (isSelectingTeam && username === connectedUsers[0]) {
+      updateTeamPreview();
+    }
   });
 
   // Whenever the server emits 'role sets updated', sync the role sets
@@ -568,6 +701,30 @@ $(function() {
     if (data.roleSets && Array.isArray(data.roleSets)) {
       roleSets = data.roleSets;
       updateRoleAssignmentUI();
+    }
+  });
+
+  // Handle team selection request from server
+  socket.on('request team selection', (data) => {
+    if (data.questIndex) {
+      requestTeamSelection(data.questIndex);
+    }
+  });
+
+  // Handle team selected confirmation
+  socket.on('team selected', (data) => {
+    if (data.leader && data.team) {
+      log(data.leader + ' selected team: ' + data.team.join(', '), {
+        prepend: false
+      });
+      
+      // Reset team selection state if we were selecting
+      if (isSelectingTeam && username === connectedUsers[0]) {
+        isSelectingTeam = false;
+        selectedTeam = [];
+        $('.teamPreview').remove();
+        updatePlayerCircle();
+      }
     }
   });
 
