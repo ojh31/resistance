@@ -35,6 +35,7 @@ $(function() {
   var $playerRoles = $('#playerRoles');
   var $assignButton = $('#assignButton');
   var $playerCircleContainer = $('#playerCircleContainer');
+  var $questTokensContainer = $('#questTokensContainer');
 
   // Role sets state - array of role set objects, each is {username: role}
   var roleSets = [{}]; // Start with one empty role set
@@ -86,6 +87,30 @@ $(function() {
     });
     
     $playerCircleContainer.append($circle);
+  };
+
+  // Initialize quest tokens
+  const initializeQuestTokens = () => {
+    $questTokensContainer.empty();
+    
+    var $questTokens = $('<div class="questTokens"></div>');
+    
+    // Create 5 quest tokens
+    for (var i = 1; i <= 5; i++) {
+      var $questToken = $('<div class="questToken"></div>')
+        .text(i);
+      
+      // Add active marker to the first quest token
+      if (i === 1) {
+        $questToken.addClass('active');
+        var $marker = $('<div class="questTokenMarker"></div>');
+        $questToken.append($marker);
+      }
+      
+      $questTokens.append($questToken);
+    }
+    
+    $questTokensContainer.append($questTokens);
   };
 
   // Update the role assignment UI
@@ -396,6 +421,8 @@ $(function() {
       prepend: true
     });
     addParticipantsMessage(data);
+    // Initialize quest tokens
+    initializeQuestTokens();
     // Request current user list from server
     socket.emit('get users');
   });
