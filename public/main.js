@@ -262,11 +262,16 @@ $(function() {
     if (numPlayers > 10) numPlayers = 10;
     
     var questSize = getQuestSize(questIndex, numPlayers);
-    currentQuestIndex = questIndex;
-    requiredTeamSize = questSize;
     
     // Only activate for the leader
     if (username === leader) {
+      // Prevent duplicate requests for the same quest
+      if (isSelectingTeam && currentQuestIndex === questIndex) {
+        return;
+      }
+      
+      currentQuestIndex = questIndex;
+      requiredTeamSize = questSize;
       isSelectingTeam = true;
       selectedTeam = [];
       
