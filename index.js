@@ -373,6 +373,26 @@ io.on('connection', (socket) => {
     });
   });
 
+  // Handle deleting a role set
+  socket.on('delete role set', (data) => {
+    if (data.roleSetIndex !== undefined && roleSets.length > 1) {
+      var roleSetIndex = parseInt(data.roleSetIndex);
+      // Ensure the index is valid
+      if (roleSetIndex >= 0 && roleSetIndex < roleSets.length) {
+        // Remove the role set at the specified index
+        roleSets.splice(roleSetIndex, 1);
+        // Ensure we always have at least one role set
+        if (roleSets.length === 0) {
+          roleSets.push({});
+        }
+        // Broadcast updated role sets to all clients
+        io.emit('role sets updated', {
+          roleSets: roleSets
+        });
+      }
+    }
+  });
+
   // Handle role assignment request
   socket.on('assign roles', (data) => {
     if (data.selectedRoles && Array.isArray(data.selectedRoles) && 

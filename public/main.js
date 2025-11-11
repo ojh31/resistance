@@ -348,6 +348,22 @@ $(function() {
     roleSets.forEach(function(roleSet, roleSetIndex) {
       var $roleSetRow = $('<div class="roleSetRow"></div>');
       
+      // Add delete button on the left side (only if there's more than one role set)
+      if (roleSets.length > 1) {
+        var $deleteButton = $('<button class="deleteRoleSetButton">×</button>')
+          .attr('data-role-set-index', roleSetIndex)
+          .attr('title', 'Delete role set');
+        
+        $deleteButton.on('click', function() {
+          var index = parseInt($(this).attr('data-role-set-index'));
+          socket.emit('delete role set', {
+            roleSetIndex: index
+          });
+        });
+        
+        $roleSetRow.append($deleteButton);
+      }
+      
       // Create a dropdown for each connected player in this role set
       connectedUsers.forEach(function(user) {
         var $playerItem = $('<div class="playerRoleItem"></div>');
