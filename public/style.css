@@ -377,6 +377,33 @@ ul {
   background-color: #1565C0;
 }
 
+.deleteRoleSetButton {
+  background-color: #f44336;
+  border: none;
+  color: white;
+  cursor: pointer;
+  font-size: 120%;
+  font-weight: 700;
+  height: 30px;
+  line-height: 1;
+  padding: 0;
+  width: 30px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 10px;
+  flex-shrink: 0;
+}
+
+.deleteRoleSetButton:hover {
+  background-color: #d32f2f;
+}
+
+.deleteRoleSetButton:active {
+  background-color: #b71c1c;
+}
+
 /* Font */
 
 .messages {
