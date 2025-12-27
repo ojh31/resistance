@@ -279,6 +279,78 @@ function getQuestSize(questIndex, numPlayers) {
   return questSize[key] || 0;
 }
 
+// Function to emit waiting status updates
+function emitWaitingStatus() {
+  // Clear any existing waiting status first
+  io.emit('waiting status', {
+    waitingOn: null
+  });
+  
+  // Check for team selection (leader needs to propose team)
+  if (players.length > 0 && !currentVote && !currentQuestVote && !assassinPhase) {
+    var leader = players[0];
+    // Only emit if we're in a game (roles assigned)
+    if (Object.keys(roleAssignments).length > 0) {
+      io.emit('waiting status', {
+        waitingOn: [leader.username],
+        context: 'team selection'
+      });
+      return;
+    }
+  }
+  
+  // Check for votes
+  if (currentVote) {
+    var waitingOnVotes = [];
+    players.forEach(function(player) {
+      if (!currentVote.votes[player.username]) {
+        waitingOnVotes.push(player.username);
+      }
+    });
+    if (waitingOnVotes.length > 0) {
+      io.emit('waiting status', {
+        waitingOn: waitingOnVotes,
+        context: 'vote'
+      });
+      return;
+    }
+  }
+  
+  // Check for quest votes
+  if (currentQuestVote) {
+    var waitingOnQuestVotes = [];
+    currentQuestVote.team.forEach(function(teamMember) {
+      if (!currentQuestVote.votes[teamMember]) {
+        waitingOnQuestVotes.push(teamMember);
+      }
+    });
+    if (waitingOnQuestVotes.length > 0) {
+      io.emit('waiting status', {
+        waitingOn: waitingOnQuestVotes,
+        context: 'quest vote'
+      });
+      return;
+    }
+  }
+  
+  // Check for assassin guess
+  if (assassinPhase) {
+    var assassinPlayer = null;
+    players.forEach(function(player) {
+      if (roleAssignments[player.username] === 'Assassin') {
+        assassinPlayer = player;
+      }
+    });
+    if (assassinPlayer) {
+      io.emit('waiting status', {
+        waitingOn: [assassinPlayer.username],
+        context: 'assassin guess'
+      });
+      return;
+    }
+  }
+}
+
 io.on('connection', (socket) => {
   var addedUser = false;
 
@@ -490,6 +562,11 @@ io.on('connection', (socket) => {
         voteTrack: currentVoteTrack,
         questIndex: currentQuestIndex
       });
+      
+      // Emit waiting status for team selection (after a small delay to ensure roles are assigned)
+      setTimeout(function() {
+        emitWaitingStatus();
+      }, 100);
     }
   });
 
@@ -535,6 +612,9 @@ io.on('connection', (socket) => {
         voteTrack: currentVoteTrack,
         questIndex: currentQuestIndex
       });
+      
+      // Emit waiting status
+      emitWaitingStatus();
     }
   });
 
@@ -543,6 +623,9 @@ io.on('connection', (socket) => {
     if (currentVote && data.vote && (data.vote === 'y' || data.vote === 'n')) {
       // Record the vote
       currentVote.votes[socket.username] = data.vote;
+      
+      // Emit updated waiting status
+      emitWaitingStatus();
       
       // Check if all players have voted
       var allVoted = true;
@@ -623,6 +706,9 @@ io.on('connection', (socket) => {
               }
             }
           });
+          
+          // Emit waiting status for quest votes
+          emitWaitingStatus();
         }
         
         // Rotate leader (both for approved and rejected)
@@ -640,6 +726,9 @@ io.on('connection', (socket) => {
         
         // Clear current vote
         currentVote = null;
+        
+        // Clear waiting status
+        emitWaitingStatus();
       }
     }
   });
@@ -654,6 +743,9 @@ io.on('connection', (socket) => {
       
       // Record the vote
       currentQuestVote.votes[socket.username] = data.vote;
+      
+      // Emit updated waiting status
+      emitWaitingStatus();
       
       // Check if all team members have voted
       var allVoted = true;
@@ -752,6 +844,9 @@ io.on('connection', (socket) => {
                   goodTeamPlayers: goodTeamPlayers,
                   minionsOfMordred: minions.length > 0 ? minions : null
                 });
+                
+                // Emit waiting status for assassin guess
+                emitWaitingStatus();
               }, 500); // Small delay to ensure general message arrives first
             }
           } else {
@@ -768,6 +863,9 @@ io.on('connection', (socket) => {
         
         // Clear quest vote
         currentQuestVote = null;
+        
+        // Clear waiting status
+        emitWaitingStatus();
       }
     }
   });
@@ -799,6 +897,9 @@ io.on('connection', (socket) => {
           requiredTeamSize: requiredTeamSize
         });
       }
+      
+      // Emit waiting status for team selection
+      emitWaitingStatus();
     }
   });
 
@@ -855,6 +956,9 @@ io.on('connection', (socket) => {
           actualMerlin: actualMerlin
         });
       }
+      
+      // Clear waiting status
+      emitWaitingStatus();
     }
   });
 });
