@@ -83,14 +83,18 @@ function getRevealInfo(role, roleAssignments, playerUsername) {
       revealText = REVEAL_TEXT_NOTHING;
       break;
       
+    case 'Oberon':
+      // Oberon doesn't know other minions and they don't know him (reflexive)
+      revealText = REVEAL_TEXT_NOTHING;
+      break;
+      
     case 'Minion':
     case 'Morgana':
     case 'Assassin':
     case 'Brute':
     case 'Mordred':
-    case 'Oberon':
       // Knows other minions of Mordred (evil players except self and Oberon)
-      // Note: Oberon sees others but they don't see him
+      // Note: Oberon is excluded from their view
       const minions = [];
       Object.keys(playerToRole).forEach(function(username) {
         if (username === playerUsername) return; // Don't include self
