@@ -57,6 +57,11 @@ $(function() {
   
   // Quest results tracking: {questIndex: 'success'|'fail'}
   var questResults = {};
+  
+  // Assassin phase state
+  var isAssassinPhase = false;
+  var pendingAssassinGuess = null; // Stores the assassin guess waiting for confirmation
+  var goodTeamPlayers = []; // List of good team players (only these can be guessed)
 
   // Update the player circle visualization
   const updatePlayerCircle = () => {
@@ -125,6 +130,56 @@ $(function() {
           // Update preview
           updateTeamPreview();
         });
+      }
+      
+      // Make clickable if assassin phase is active (only when no guess is pending)
+      // Only make good team players clickable
+      if (isAssassinPhase && pendingAssassinGuess === null && goodTeamPlayers.indexOf(user) !== -1) {
+        $playerItem.addClass('clickable');
+        $playerItem.css('cursor', 'pointer');
+        
+        // Add click handler for assassin guess
+        $playerItem.on('click', function() {
+          var clickedUser = $(this).data('username');
+          
+          // Validate that clicked player is on good team
+          if (goodTeamPlayers.indexOf(clickedUser) === -1) {
+            log('You can only guess players on the good team.', {
+              prepend: false,
+              color: '#f44336'
+            });
+            return;
+          }
+          
+          // Only allow clicking if no guess is pending
+          if (pendingAssassinGuess === null) {
+            // Store the guess immediately to prevent multiple selections
+            pendingAssassinGuess = clickedUser;
+            
+            // Immediately disable all click handlers to prevent rapid clicking
+            $('.playerCircleItem').off('click').removeClass('clickable').css('cursor', 'default');
+            
+            log('You guessed: ' + clickedUser + '. Confirm? ("y"/"n")', {
+              prepend: false,
+              color: '#f44336'
+            });
+            
+            // Update player circle to show selection
+            updatePlayerCircle();
+          }
+        });
+      }
+      
+      // Gray out evil team players during assassin phase
+      if (isAssassinPhase && goodTeamPlayers.length > 0 && goodTeamPlayers.indexOf(user) === -1) {
+        $playerItem.css('opacity', '0.5');
+        $playerItem.css('cursor', 'not-allowed');
+      }
+      
+      // Highlight if this is the pending assassin guess
+      if (isAssassinPhase && pendingAssassinGuess === user) {
+        $playerItem.addClass('selected');
+        $playerItem.css('border', '3px solid #f44336');
       }
       
       $circle.append($playerItem);
@@ -455,6 +510,19 @@ $(function() {
       return;
     }
     
+    // Validate: If Assassin is selected, Merlin or Merlin Pure must also be selected
+    var hasAssassin = selectedRoles.indexOf('Assassin') !== -1;
+    var hasMerlin = selectedRoles.indexOf('Merlin') !== -1;
+    var hasMerlinPure = selectedRoles.indexOf('Merlin Pure') !== -1;
+    
+    if (hasAssassin && !hasMerlin && !hasMerlinPure) {
+      log('Error: If Assassin is selected, Merlin or Merlin Pure must also be selected.', {
+        prepend: false,
+        color: '#f44336'
+      });
+      return;
+    }
+    
     // Send selected roles to server for random distribution
     socket.emit('assign roles', {
       selectedRoles: selectedRoles,
@@ -597,6 +665,41 @@ $(function() {
           return;
         }
       }
+      
+      // Handle assassin guess confirmation
+      if (isAssassinPhase && pendingAssassinGuess !== null) {
+        if (messageLower === 'y') {
+          // Confirm and submit the assassin guess
+          socket.emit('submit assassin guess', {
+            guess: pendingAssassinGuess
+          });
+          log('You guessed: ' + pendingAssassinGuess, {
+            prepend: false,
+            color: '#f44336'
+          });
+          pendingAssassinGuess = null;
+          isAssassinPhase = false;
+          return;
+        } else if (messageLower === 'n') {
+          // Cancel the guess, go back to initial assassin guess state
+          pendingAssassinGuess = null;
+          log('Assassin guess cancelled. Click on a good team player name in the circle above to guess who is Merlin.', {
+            prepend: false
+          });
+          // Update player circle to show clickable names again
+          updatePlayerCircle();
+          return;
+        } else {
+          // Reject invalid input during assassin guess confirmation
+          log('Please respond with "y" or "n"', {
+            prepend: false
+          });
+          return;
+        }
+      }
+      
+      // Assassin guess is now handled by clicking on player names, not text input
+      // Only confirmation (y/n) is handled via text input
       
       // Handle team selection confirmation
       if (isSelectingTeam && username === connectedUsers[0] && messageLower === 'y') {
@@ -897,6 +1000,16 @@ $(function() {
     }
   });
 
+  // Handle role assignment error
+  socket.on('role assignment error', (data) => {
+    if (data.message) {
+      log(data.message, {
+        prepend: false,
+        color: '#f44336'
+      });
+    }
+  });
+
   // Whenever the server emits 'user list', update the connected users
   socket.on('user list', (data) => {
     connectedUsers = data.users || [];
@@ -1042,8 +1155,8 @@ $(function() {
       isQuestVoting = false;
       pendingQuestVote = null;
       
-      // Determine quest success/failure: if there's a single FAIL vote, quest fails
-      var questSucceeded = data.failCount === 0;
+      // Use server-provided quest success status if available, otherwise calculate
+      var questSucceeded = data.questSucceeded !== undefined ? data.questSucceeded : (data.failCount === 0);
       
       // Store quest result
       questResults[data.questIndex] = questSucceeded ? 'success' : 'fail';
@@ -1054,6 +1167,14 @@ $(function() {
         color: questSucceeded ? '#4CAF50' : '#f44336'
       });
       
+      // Show successful quest count if provided
+      if (data.successfulQuests !== undefined) {
+        log('Good team has won ' + data.successfulQuests + ' quest(s)', {
+          prepend: false,
+          color: '#4CAF50'
+        });
+      }
+      
       // Sync quest index with server, then increment
       currentQuestIndex = data.questIndex;
       // Increment quest token (this will also increment currentQuestIndex)
@@ -1061,6 +1182,13 @@ $(function() {
       
       // Re-initialize quest tokens to show success/fail styling
       initializeQuestTokens();
+      
+      // If good team has won 3 quests, assassin phase will be triggered by server
+      // Don't proceed to next quest in that case
+      if (data.successfulQuests !== undefined && data.successfulQuests >= 3) {
+        // Assassin phase will be triggered, don't proceed to next quest
+        return;
+      }
       
       // Reset vote track to 1 for next quest
       currentVoteTrack = 1;
@@ -1075,6 +1203,100 @@ $(function() {
           });
         }
       }, 1500); // Wait for user list to update
+    }
+  });
+
+  // Handle assassin phase started
+  socket.on('assassin phase started', (data) => {
+    if (data.assassin) {
+      log('Good team has won 3 quests! Assassin phase begins. ' + data.assassin + ' must guess who Merlin is.', {
+        prepend: false,
+        color: '#f44336'
+      });
+    }
+  });
+
+  // Handle request for assassin guess
+  socket.on('request assassin guess', (data) => {
+    isAssassinPhase = true;
+    pendingAssassinGuess = null;
+    goodTeamPlayers = data.goodTeamPlayers || [];
+    
+    // Show minions of Mordred information again
+    if (data.minionsOfMordred && data.minionsOfMordred.length > 0) {
+      log('Minions of Mordred - ' + data.minionsOfMordred.join(', '), {
+        prepend: false,
+        color: '#f44336'
+      });
+    }
+    
+    log('You are the Assassin! Click on a good team player name in the circle above to guess who is Merlin.', {
+      prepend: false,
+      color: '#f44336'
+    });
+    
+    if (goodTeamPlayers.length > 0) {
+      log('Good team players: ' + goodTeamPlayers.join(', '), {
+        prepend: false
+      });
+    }
+    
+    // Update player circle to make names clickable
+    updatePlayerCircle();
+  });
+  
+  // Handle assassin guess error
+  socket.on('assassin guess error', (data) => {
+    if (data.message) {
+      log(data.message, {
+        prepend: false,
+        color: '#f44336'
+      });
+    }
+    // Reset guess to allow trying again
+    pendingAssassinGuess = null;
+    updatePlayerCircle();
+  });
+
+  // Handle game over
+  socket.on('game over', (data) => {
+    // Reset all game states
+    isVoting = false;
+    pendingVote = null;
+    isQuestVoting = false;
+    pendingQuestVote = null;
+    isSelectingTeam = false;
+    selectedTeam = [];
+    isAssassinPhase = false;
+    pendingAssassinGuess = null;
+    goodTeamPlayers = [];
+    
+    var winnerColor = data.winner === 'good' ? '#4CAF50' : '#f44336';
+    var winnerText = data.winner === 'good' ? 'GOOD TEAM WINS!' : 'EVIL TEAM WINS!';
+    
+    log('=== GAME OVER ===', {
+      prepend: false,
+      color: winnerColor
+    });
+    log(winnerText, {
+      prepend: false,
+      color: winnerColor
+    });
+    
+    if (data.reason) {
+      log(data.reason, {
+        prepend: false,
+        color: winnerColor
+      });
+    }
+    
+    if (data.guessedPlayer && data.actualMerlin) {
+      log('Assassin guessed: ' + data.guessedPlayer, {
+        prepend: false
+      });
+      log('Actual Merlin: ' + data.actualMerlin, {
+        prepend: false
+      });
     }
   });
 
