@@ -248,6 +248,19 @@ io.on('connection', (socket) => {
   socket.on('add user', (username) => {
     if (addedUser) return;
 
+    // Check if username is already taken
+    var usernameTaken = players.some(function(player) {
+      return player.username === username;
+    });
+
+    if (usernameTaken) {
+      // Username is already taken, emit error
+      socket.emit('username taken', {
+        message: 'Username "' + username + '" is already taken. Please choose another.'
+      });
+      return;
+    }
+
     // we store the username in the socket session for this client
     socket.username = username;
     ++numUsers;
