@@ -745,6 +745,34 @@ $(function() {
     addMessageElement($el, options);
   }
 
+  // Update waiting status message
+  const updateWaitingStatus = (data) => {
+    // Remove any existing waiting status messages
+    $('.waiting-status-message').remove();
+    
+    if (data.waitingOn && data.waitingOn.length > 0) {
+      var message = 'Waiting on ' + data.waitingOn.join(', ');
+      
+      // Add context-specific text
+      if (data.context === 'vote') {
+        message += ' to vote';
+      } else if (data.context === 'quest vote') {
+        message += ' to submit mission vote';
+      } else if (data.context === 'team selection') {
+        message += ' to propose team';
+      } else if (data.context === 'assassin guess') {
+        message += ' to guess Merlin';
+      }
+      
+      var $waitingMessage = $('<li class="log waiting-status-message">' + message + '</li>')
+        .css('color', '#FFA500'); // Orange color for waiting messages
+      
+      addMessageElement($waitingMessage, {
+        prepend: false
+      });
+    }
+  }
+
   // Adds the visual chat message to the message list
   const addChatMessage = (data, options) => {
     // Don't fade the message in if there is an 'X was typing'
@@ -1289,6 +1317,11 @@ $(function() {
     updatePlayerCircle();
   });
 
+  // Handle waiting status updates
+  socket.on('waiting status', (data) => {
+    updateWaitingStatus(data);
+  });
+
   // Handle game over
   socket.on('game over', (data) => {
     // Reset all game states
@@ -1301,6 +1334,9 @@ $(function() {
     isAssassinPhase = false;
     pendingAssassinGuess = null;
     goodTeamPlayers = [];
+    
+    // Clear waiting status
+    $('.waiting-status-message').remove();
     
     var winnerColor = data.winner === 'good' ? '#4CAF50' : '#f44336';
     var winnerText = data.winner === 'good' ? 'GOOD TEAM WINS!' : 'EVIL TEAM WINS!';
