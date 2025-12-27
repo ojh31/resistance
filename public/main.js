@@ -1013,6 +1013,15 @@ $(function() {
   // Whenever the server emits 'user list', update the connected users
   socket.on('user list', (data) => {
     connectedUsers = data.users || [];
+    
+    // Update vote track and quest index from server if provided
+    if (data.voteTrack !== undefined) {
+      currentVoteTrack = data.voteTrack;
+    }
+    if (data.questIndex !== undefined) {
+      currentQuestIndex = data.questIndex;
+    }
+    
     updateRoleAssignmentUI();
     updatePlayerCircle();
     initializeQuestTokens(); // Update quest sizes based on number of players
@@ -1069,12 +1078,22 @@ $(function() {
     if (data.team && data.leader) {
       isVoting = true;
       pendingVote = null; // Reset any pending vote
+      // Update vote track and quest index from server
+      if (data.voteTrack !== undefined) {
+        currentVoteTrack = data.voteTrack;
+      }
+      if (data.questIndex !== undefined) {
+        currentQuestIndex = data.questIndex;
+      }
       log('Mission ' + currentQuestIndex + ' Vote ' + currentVoteTrack, {
         prepend: false
       });
       log('Vote on team: ' + data.team.join(', ') + ' ("y"/"n")', {
         prepend: false
       });
+      // Update UI to reflect new vote track
+      initializeVoteTrack();
+      updatePlayerCircle();
     }
   });
 
@@ -1098,6 +1117,13 @@ $(function() {
       // Reset voting state
       isVoting = false;
       pendingVote = null;
+      
+      // Update vote track from server
+      if (data.voteTrack !== undefined) {
+        currentVoteTrack = data.voteTrack;
+        initializeVoteTrack();
+        updatePlayerCircle();
+      }
       
       // Display individual votes
       var approveText = 'Approve: ' + (data.approveVoters && data.approveVoters.length > 0 ? data.approveVoters.join(', ') : 'None');
@@ -1129,9 +1155,6 @@ $(function() {
           color: '#f44336'
         });
         
-        // Increment vote track
-        incrementVoteTrack();
-        
         // Rotate leader
         rotateLeader();
         
@@ -1157,6 +1180,12 @@ $(function() {
       // Reset quest voting state
       isQuestVoting = false;
       pendingQuestVote = null;
+      
+      // Update vote track from server (should be reset to 1)
+      if (data.voteTrack !== undefined) {
+        currentVoteTrack = data.voteTrack;
+        initializeVoteTrack();
+      }
       
       // Use server-provided quest success status if available, otherwise calculate
       var questSucceeded = data.questSucceeded !== undefined ? data.questSucceeded : (data.failCount === 0);
@@ -1186,16 +1215,15 @@ $(function() {
       // Re-initialize quest tokens to show success/fail styling
       initializeQuestTokens();
       
+      // Update player circle to reflect new vote track
+      updatePlayerCircle();
+      
       // If good team has won 3 quests, assassin phase will be triggered by server
       // Don't proceed to next quest in that case
       if (data.successfulQuests !== undefined && data.successfulQuests >= 3) {
         // Assassin phase will be triggered, don't proceed to next quest
         return;
       }
-      
-      // Reset vote track to 1 for next quest
-      currentVoteTrack = 1;
-      initializeVoteTrack();
       
       // Rotate leader (server handles this, wait for user list update)
       // After user list updates, request team selection for next quest

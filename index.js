@@ -24,6 +24,7 @@ var roleAssignments = {}; // Object to track actual role assignments: {username:
 var currentVote = null; // {team: [...], leader: '...', votes: {username: 'y'|'n'}, questIndex: number}
 var currentQuestVote = null; // {questIndex: number, team: [...], votes: {username: 'y'|'n'}}
 var currentQuestIndex = 1; // Track current quest index
+var currentVoteTrack = 1; // Track current vote track (1-5)
 var questResults = {}; // Track quest results: {questIndex: 'success'|'fail'}
 var assassinPhase = false; // Track if assassin phase is active
 
@@ -329,7 +330,9 @@ io.on('connection', (socket) => {
     
     // Send updated user list to all clients
     io.emit('user list', {
-      users: getUserList()
+      users: getUserList(),
+      voteTrack: currentVoteTrack,
+      questIndex: currentQuestIndex
     });
     
     // Also send current role sets
@@ -380,7 +383,9 @@ io.on('connection', (socket) => {
       
       // Send updated user list to all clients
       io.emit('user list', {
-        users: getUserList()
+        users: getUserList(),
+        voteTrack: currentVoteTrack,
+        questIndex: currentQuestIndex
       });
       
       // Also send updated role sets
@@ -393,7 +398,9 @@ io.on('connection', (socket) => {
   // Handle request for user list
   socket.on('get users', () => {
     socket.emit('user list', {
-      users: getUserList()
+      users: getUserList(),
+      voteTrack: currentVoteTrack,
+      questIndex: currentQuestIndex
     });
     // Also send current role sets
     socket.emit('role sets updated', {
@@ -469,7 +476,20 @@ io.on('connection', (socket) => {
         return;
       }
       
+      // Reset game state for new game
+      currentQuestIndex = 1;
+      currentVoteTrack = 1;
+      questResults = {};
+      assassinPhase = false;
+      
       assignRoles(data.selectedRoles, data.players);
+      
+      // Send updated state to all clients
+      io.emit('user list', {
+        users: getUserList(),
+        voteTrack: currentVoteTrack,
+        questIndex: currentQuestIndex
+      });
     }
   });
 
@@ -511,7 +531,9 @@ io.on('connection', (socket) => {
       // Request votes from all players
       io.emit('request vote', {
         team: data.team,
-        leader: socket.username
+        leader: socket.username,
+        voteTrack: currentVoteTrack,
+        questIndex: currentQuestIndex
       });
     }
   });
@@ -551,6 +573,14 @@ io.on('connection', (socket) => {
         var majority = Math.floor(totalVotes / 2) + 1;
         var approved = approveCount >= majority;
         
+        // Increment vote track if rejected
+        if (!approved) {
+          currentVoteTrack++;
+          if (currentVoteTrack > 5) {
+            currentVoteTrack = 5; // Cap at 5
+          }
+        }
+        
         // Broadcast result with individual votes
         io.emit('vote result', {
           approved: approved,
@@ -559,8 +589,17 @@ io.on('connection', (socket) => {
           approveVoters: approveVoters,
           rejectVoters: rejectVoters,
           team: currentVote.team,
-          leader: currentVote.leader
+          leader: currentVote.leader,
+          voteTrack: currentVoteTrack
         });
+        
+        // Check if vote track reached 5 - evil team wins
+        if (currentVoteTrack >= 5 && !approved) {
+          io.emit('game over', {
+            winner: 'evil',
+            reason: 'Vote track reached 5. Spies win!'
+          });
+        }
         
         // If approved, start quest voting instead of immediately proceeding
         if (approved && currentVote.questIndex) {
@@ -593,7 +632,9 @@ io.on('connection', (socket) => {
           
           // Send updated user list to all clients
           io.emit('user list', {
-            users: getUserList()
+            users: getUserList(),
+            voteTrack: currentVoteTrack,
+            questIndex: currentQuestIndex
           });
         }
         
@@ -649,6 +690,9 @@ io.on('connection', (socket) => {
           }
         });
         
+        // Reset vote track to 1 when quest completes
+        currentVoteTrack = 1;
+        
         // Broadcast quest result to all players
         io.emit('quest result', {
           questIndex: currentQuestVote.questIndex,
@@ -656,7 +700,8 @@ io.on('connection', (socket) => {
           successCount: successCount,
           failCount: failCount,
           questSucceeded: questSucceeded,
-          successfulQuests: successfulQuests
+          successfulQuests: successfulQuests,
+          voteTrack: currentVoteTrack
         });
         
         // Check if good team has won 3 quests - trigger assassin phase
