@@ -24,6 +24,8 @@ var roleAssignments = {}; // Object to track actual role assignments: {username:
 var currentVote = null; // {team: [...], leader: '...', votes: {username: 'y'|'n'}, questIndex: number}
 var currentQuestVote = null; // {questIndex: number, team: [...], votes: {username: 'y'|'n'}}
 var currentQuestIndex = 1; // Track current quest index
+var questResults = {}; // Track quest results: {questIndex: 'success'|'fail'}
+var assassinPhase = false; // Track if assassin phase is active
 
 // Constants
 var REVEAL_TEXT_NOTHING = 'You know nothing, good luck!';
@@ -423,6 +425,19 @@ io.on('connection', (socket) => {
   socket.on('assign roles', (data) => {
     if (data.selectedRoles && Array.isArray(data.selectedRoles) && 
         data.players && Array.isArray(data.players)) {
+      
+      // Validate: If Assassin is selected, Merlin or Merlin Pure must also be selected
+      var hasAssassin = data.selectedRoles.indexOf('Assassin') !== -1;
+      var hasMerlin = data.selectedRoles.indexOf('Merlin') !== -1;
+      var hasMerlinPure = data.selectedRoles.indexOf('Merlin Pure') !== -1;
+      
+      if (hasAssassin && !hasMerlin && !hasMerlinPure) {
+        socket.emit('role assignment error', {
+          message: 'Error: If Assassin is selected, Merlin or Merlin Pure must also be selected.'
+        });
+        return;
+      }
+      
       assignRoles(data.selectedRoles, data.players);
     }
   });
@@ -589,16 +604,91 @@ io.on('connection', (socket) => {
           }
         });
         
+        // Determine quest success/failure: if there's a single FAIL vote, quest fails
+        var questSucceeded = failCount === 0;
+        
+        // Store quest result
+        questResults[currentQuestVote.questIndex] = questSucceeded ? 'success' : 'fail';
+        
+        // Count successful quests
+        var successfulQuests = 0;
+        Object.keys(questResults).forEach(function(questIndex) {
+          if (questResults[questIndex] === 'success') {
+            successfulQuests++;
+          }
+        });
+        
         // Broadcast quest result to all players
         io.emit('quest result', {
           questIndex: currentQuestVote.questIndex,
           team: currentQuestVote.team,
           successCount: successCount,
-          failCount: failCount
+          failCount: failCount,
+          questSucceeded: questSucceeded,
+          successfulQuests: successfulQuests
         });
         
-        // Increment quest index for next quest
-        currentQuestIndex++;
+        // Check if good team has won 3 quests - trigger assassin phase
+        if (successfulQuests >= 3) {
+          assassinPhase = true;
+          
+          // Find the Assassin player
+          var assassinPlayer = null;
+          players.forEach(function(player) {
+            if (roleAssignments[player.username] === 'Assassin') {
+              assassinPlayer = player;
+            }
+          });
+          
+          if (assassinPlayer) {
+            // Notify all players that assassin phase has begun (emit first)
+            io.emit('assassin phase started', {
+              assassin: assassinPlayer.username
+            });
+            
+            // Then request assassin to guess Merlin (with delay to ensure message order)
+            var assassinSocket = io.sockets.connected[assassinPlayer.socketId];
+            if (assassinSocket) {
+              // Get minions of Mordred (evil players except self and Oberon)
+              const evilRoles = ['Minion', 'Morgana', 'Assassin', 'Mordred', 'Oberon', 'Brute'];
+              const goodRoles = ['Servant', 'Merlin', 'Percival', 'Merlin Pure', 'Tristan', 'Isolde'];
+              const minions = [];
+              Object.keys(roleAssignments).forEach(function(username) {
+                if (username === assassinPlayer.username) return; // Don't include self
+                const playerRole = roleAssignments[username];
+                if (evilRoles.indexOf(playerRole) !== -1 && playerRole !== 'Oberon') {
+                  minions.push(username);
+                }
+              });
+              
+              // Get good team players (only these can be guessed)
+              const goodTeamPlayers = [];
+              Object.keys(roleAssignments).forEach(function(username) {
+                const playerRole = roleAssignments[username];
+                if (goodRoles.indexOf(playerRole) !== -1) {
+                  goodTeamPlayers.push(username);
+                }
+              });
+              
+              setTimeout(function() {
+                assassinSocket.emit('request assassin guess', {
+                  players: getUserList(),
+                  goodTeamPlayers: goodTeamPlayers,
+                  minionsOfMordred: minions.length > 0 ? minions : null
+                });
+              }, 500); // Small delay to ensure general message arrives first
+            }
+          } else {
+            // No assassin in game, good team wins immediately
+            io.emit('game over', {
+              winner: 'good',
+              reason: 'Good team won 3 quests and there is no Assassin'
+            });
+          }
+        } else {
+          // Increment quest index for next quest
+          currentQuestIndex++;
+        }
         
         // Clear quest vote
         currentQuestVote = null;
@@ -608,6 +698,11 @@ io.on('connection', (socket) => {
 
   // Handle request to start team selection for a quest
   socket.on('start team selection', (data) => {
+    // Don't allow team selection during assassin phase
+    if (assassinPhase) {
+      return;
+    }
+    
     if (data.questIndex && players.length > 0) {
       // Update current quest index if provided
       if (data.questIndex) {
@@ -626,6 +721,62 @@ io.on('connection', (socket) => {
         leaderSocket.emit('request team selection', {
           questIndex: currentQuestIndex,
           requiredTeamSize: requiredTeamSize
+        });
+      }
+    }
+  });
+
+  // Handle assassin guess submission
+  socket.on('submit assassin guess', (data) => {
+    if (!assassinPhase) {
+      return;
+    }
+    
+    // Verify the sender is the Assassin
+    if (roleAssignments[socket.username] !== 'Assassin') {
+      return;
+    }
+    
+    if (data.guess && typeof data.guess === 'string') {
+      var guessedPlayer = data.guess;
+      
+      // Validate that the guessed player is on the good team
+      const goodRoles = ['Servant', 'Merlin', 'Percival', 'Merlin Pure', 'Tristan', 'Isolde'];
+      if (!roleAssignments[guessedPlayer] || goodRoles.indexOf(roleAssignments[guessedPlayer]) === -1) {
+        // Invalid guess - must be a good team member
+        socket.emit('assassin guess error', {
+          message: 'You can only guess players on the good team. Please select a good team member.'
+        });
+        return;
+      }
+      
+      // Check if the guess is correct (guessed player is Merlin)
+      var isCorrect = roleAssignments[guessedPlayer] === 'Merlin';
+      
+      // End assassin phase
+      assassinPhase = false;
+      
+      // Broadcast game result
+      if (isCorrect) {
+        io.emit('game over', {
+          winner: 'evil',
+          reason: 'Assassin correctly identified Merlin: ' + guessedPlayer,
+          guessedPlayer: guessedPlayer,
+          actualMerlin: guessedPlayer
+        });
+      } else {
+        var actualMerlin = null;
+        Object.keys(roleAssignments).forEach(function(username) {
+          if (roleAssignments[username] === 'Merlin') {
+            actualMerlin = username;
+          }
+        });
+        
+        io.emit('game over', {
+          winner: 'good',
+          reason: 'Assassin incorrectly guessed ' + guessedPlayer + '. Merlin was ' + (actualMerlin || 'unknown'),
+          guessedPlayer: guessedPlayer,
+          actualMerlin: actualMerlin
         });
       }
     }
