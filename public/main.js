@@ -478,12 +478,7 @@ $(function() {
 
     // If the username is valid
     if (username) {
-      $loginPage.fadeOut();
-      $chatPage.css('display', 'flex');
-      $loginPage.off('click');
-      $currentInput = $inputMessage.focus();
-
-      // Tell the server your username
+      // Tell the server your username (don't fade out yet - wait for confirmation)
       socket.emit('add user', username);
     }
   }
@@ -786,6 +781,14 @@ $(function() {
   // Whenever the server emits 'login', log the login message
   socket.on('login', (data) => {
     connected = true;
+    // Hide any error messages
+    $('.usernameError').fadeOut();
+    // Now that login is confirmed, show the chat page
+    $loginPage.fadeOut();
+    $chatPage.css('display', 'flex');
+    $loginPage.off('click');
+    $currentInput = $inputMessage.focus();
+    
     // Display the welcome message
     var message = "Welcome, " + username;
     log(message, {
@@ -796,6 +799,21 @@ $(function() {
     initializeQuestTokens();
     // Request current user list from server
     socket.emit('get users');
+  });
+
+  // Whenever the server emits 'username taken', show error and stay on login page
+  socket.on('username taken', (data) => {
+    // Show error message on login page
+    var $errorMessage = $('.usernameError');
+    if ($errorMessage.length === 0) {
+      $errorMessage = $('<div class="usernameError"></div>');
+      $('.form').append($errorMessage);
+    }
+    $errorMessage.text(data.message || 'Username is already taken. Please choose another.').fadeIn();
+    
+    // Clear the username input and refocus
+    $usernameInput.val('').focus();
+    username = null; // Reset username so user can try again
   });
 
   // Whenever the server emits 'new message', update the chat body
