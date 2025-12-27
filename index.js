@@ -232,6 +232,19 @@ function getUserList() {
   return players.map(function(p) { return p.username; });
 }
 
+// Function to get quest size based on quest index and number of players
+function getQuestSize(questIndex, numPlayers) {
+  var questSize = {
+    '1,5': 2, '1,6': 2, '1,7': 2, '1,8': 3, '1,9': 3, '1,10': 3,
+    '2,5': 3, '2,6': 3, '2,7': 3, '2,8': 4, '2,9': 4, '2,10': 4,
+    '3,5': 2, '3,6': 4, '3,7': 3, '3,8': 4, '3,9': 4, '3,10': 4,
+    '4,5': 3, '4,6': 3, '4,7': 4, '4,8': 5, '4,9': 5, '4,10': 5,
+    '5,5': 3, '5,6': 4, '5,7': 4, '5,8': 5, '5,9': 5, '5,10': 5,
+  };
+  var key = questIndex + ',' + numPlayers;
+  return questSize[key] || 0;
+}
+
 io.on('connection', (socket) => {
   var addedUser = false;
 
@@ -417,6 +430,24 @@ io.on('connection', (socket) => {
   // Handle team selection confirmation
   socket.on('confirm team', (data) => {
     if (data.team && Array.isArray(data.team)) {
+      // Validate team size
+      var numPlayers = players.length;
+      if (numPlayers < 5) numPlayers = 5;
+      if (numPlayers > 10) numPlayers = 10;
+      
+      var requiredTeamSize = getQuestSize(currentQuestIndex, numPlayers);
+      
+      if (data.team.length !== requiredTeamSize) {
+        // Team size is incorrect, notify the leader
+        socket.emit('team size error', {
+          message: 'Team size must be exactly ' + requiredTeamSize + ' players for Quest ' + currentQuestIndex + '. You selected ' + data.team.length + ' players.',
+          requiredSize: requiredTeamSize,
+          actualSize: data.team.length,
+          questIndex: currentQuestIndex
+        });
+        return;
+      }
+      
       // Initialize voting
       currentVote = {
         team: data.team,
@@ -583,11 +614,18 @@ io.on('connection', (socket) => {
         currentQuestIndex = data.questIndex;
       }
       
+      // Calculate required team size (server is single source of truth)
+      var numPlayers = players.length;
+      if (numPlayers < 5) numPlayers = 5;
+      if (numPlayers > 10) numPlayers = 10;
+      var requiredTeamSize = getQuestSize(currentQuestIndex, numPlayers);
+      
       var leader = players[0];
       var leaderSocket = io.sockets.connected[leader.socketId];
       if (leaderSocket) {
         leaderSocket.emit('request team selection', {
-          questIndex: data.questIndex
+          questIndex: currentQuestIndex,
+          requiredTeamSize: requiredTeamSize
         });
       }
     }

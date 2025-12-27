@@ -283,15 +283,22 @@ $(function() {
   };
 
   // Request team selection from leader
-  const requestTeamSelection = (questIndex) => {
+  const requestTeamSelection = (questIndex, requiredTeamSizeFromServer) => {
     if (connectedUsers.length === 0) return;
     
     var leader = connectedUsers[0];
-    var numPlayers = connectedUsers.length;
-    if (numPlayers < 5) numPlayers = 5;
-    if (numPlayers > 10) numPlayers = 10;
     
-    var questSize = getQuestSize(questIndex, numPlayers);
+    // Use server-provided team size (single source of truth)
+    // Fall back to client calculation only if server didn't provide it (backward compatibility)
+    var questSize;
+    if (requiredTeamSizeFromServer !== undefined) {
+      questSize = requiredTeamSizeFromServer;
+    } else {
+      var numPlayers = connectedUsers.length;
+      if (numPlayers < 5) numPlayers = 5;
+      if (numPlayers > 10) numPlayers = 10;
+      questSize = getQuestSize(questIndex, numPlayers);
+    }
     
     // Only activate for the leader
     if (username === leader) {
@@ -906,7 +913,7 @@ $(function() {
   // Handle team selection request from server
   socket.on('request team selection', (data) => {
     if (data.questIndex) {
-      requestTeamSelection(data.questIndex);
+      requestTeamSelection(data.questIndex, data.requiredTeamSize);
     }
   });
 
@@ -924,6 +931,15 @@ $(function() {
         $('.teamPreview').remove();
         updatePlayerCircle();
       }
+    }
+  });
+
+  // Handle team size error
+  socket.on('team size error', (data) => {
+    if (data.message) {
+      log(data.message, {
+        prepend: false
+      });
     }
   });
 
