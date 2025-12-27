@@ -1069,6 +1069,9 @@ $(function() {
     if (data.team && data.leader) {
       isVoting = true;
       pendingVote = null; // Reset any pending vote
+      log('Mission ' + currentQuestIndex + ' Vote ' + currentVoteTrack, {
+        prepend: false
+      });
       log('Vote on team: ' + data.team.join(', ') + ' ("y"/"n")', {
         prepend: false
       });
