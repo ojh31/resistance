@@ -163,7 +163,7 @@ ul {
 }
 
 .questToken.active {
-  border-color: #4CAF50;
+  border-color: #FFA500;
   border-width: 3px;
 }
 
@@ -185,7 +185,7 @@ ul {
   right: -8px;
   width: 20px;
   height: 20px;
-  background-color: #4CAF50;
+  background-color: #FFA500;
   border: 2px solid #fff;
   border-radius: 50%;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
@@ -231,7 +231,7 @@ ul {
 }
 
 .voteTrackTile.active {
-  border-color: #4CAF50;
+  border-color: #FFA500;
   border-width: 3px;
 }
 
@@ -430,7 +430,8 @@ ul {
 }
 
 .log.role-assignment-message {
-  color: red;
+  color: #9C27B0;
+  font-weight: bold;
 }
 
 /* Messages */

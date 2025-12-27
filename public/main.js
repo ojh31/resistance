@@ -508,7 +508,8 @@ $(function() {
             vote: pendingQuestVote
           });
           log('You voted: ' + (pendingQuestVote === 'y' ? 'Success' : 'Fail'), {
-            prepend: false
+            prepend: false,
+            color: pendingQuestVote === 'y' ? '#4CAF50' : '#f44336'
           });
           pendingQuestVote = null;
           isQuestVoting = false;
@@ -535,7 +536,8 @@ $(function() {
           // Store the quest vote and request confirmation
           pendingQuestVote = messageLower;
           log('You have selected ' + (messageLower === 'y' ? 'Success' : 'Fail') + '. Confirm? ("y"/"n")', {
-            prepend: false
+            prepend: false,
+            color: messageLower === 'y' ? '#4CAF50' : '#f44336'
           });
           return;
         } else {
@@ -555,7 +557,8 @@ $(function() {
             vote: pendingVote
           });
           log('You voted: ' + (pendingVote === 'y' ? 'Approve' : 'Reject'), {
-            prepend: false
+            prepend: false,
+            color: pendingVote === 'y' ? '#4CAF50' : '#f44336'
           });
           pendingVote = null;
           isVoting = false;
@@ -582,7 +585,8 @@ $(function() {
           // Store the vote and request confirmation
           pendingVote = messageLower;
           log('You selected: ' + (messageLower === 'y' ? 'Approve' : 'Reject') + '. Confirm? ("y"/"n")', {
-            prepend: false
+            prepend: false,
+            color: messageLower === 'y' ? '#4CAF50' : '#f44336'
           });
           return;
         } else {
@@ -631,6 +635,10 @@ $(function() {
   // Log a message
     const log = (message, options) => {
     var $el = $('<li>').addClass('log').text(message);
+    // Apply color if specified in options
+    if (options && options.color) {
+      $el.css('color', options.color);
+    }
     addMessageElement($el, options);
   }
 
@@ -980,17 +988,20 @@ $(function() {
       var rejectText = 'Reject: ' + (data.rejectVoters && data.rejectVoters.length > 0 ? data.rejectVoters.join(', ') : 'None');
       
       log(approveText, {
-        prepend: false
+        prepend: false,
+        color: '#4CAF50'
       });
       log(rejectText, {
-        prepend: false
+        prepend: false,
+        color: '#f44336'
       });
       
       var resultText = 'Vote result: ';
       if (data.approved) {
         resultText += 'APPROVED (' + data.approveCount + ' approve, ' + data.rejectCount + ' reject). Mission ' + currentQuestIndex + ' begins!';
         log(resultText, {
-          prepend: false
+          prepend: false,
+          color: '#4CAF50'
         });
         
         // Quest voting will be initiated by server, don't proceed here
@@ -998,7 +1009,8 @@ $(function() {
       } else {
         resultText += 'REJECTED (' + data.approveCount + ' approve, ' + data.rejectCount + ' reject).';
         log(resultText, {
-          prepend: false
+          prepend: false,
+          color: '#f44336'
         });
         
         // Increment vote track
@@ -1038,7 +1050,8 @@ $(function() {
       
       // Publish quest results to everyone
       log('Quest ' + data.questIndex + ' results: ' + data.successCount + ' Success, ' + data.failCount + ' Fail', {
-        prepend: false
+        prepend: false,
+        color: questSucceeded ? '#4CAF50' : '#f44336'
       });
       
       // Sync quest index with server, then increment
