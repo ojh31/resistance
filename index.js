@@ -128,23 +128,50 @@ function getRevealInfo(role, roleAssignments, playerUsername) {
       
     case 'Percival':
       // Knows Merlin and Morgana, but not which is which
+      // If Merlin Pure, Percival, and Morgana are all present, Percival sees Merlin Pure and Morgana
       const percivalSees = [];
-      if (roleToPlayers['Merlin']) {
-        roleToPlayers['Merlin'].forEach(function(name) {
-          percivalSees.push(name);
-        });
-      }
-      if (roleToPlayers['Morgana']) {
-        roleToPlayers['Morgana'].forEach(function(name) {
-          percivalSees.push(name);
-        });
-      }
-      if (percivalSees.length === 0) {
-        revealText = REVEAL_TEXT_NOTHING;
+      const hasMerlinPure = roleToPlayers['Merlin Pure'] && roleToPlayers['Merlin Pure'].length > 0;
+      const hasMorgana = roleToPlayers['Morgana'] && roleToPlayers['Morgana'].length > 0;
+      
+      // If Merlin Pure and Morgana are both present (and Percival exists, which we know since we're in this case),
+      // Percival sees Merlin Pure and Morgana
+      if (hasMerlinPure && hasMorgana) {
+        if (roleToPlayers['Merlin Pure']) {
+          roleToPlayers['Merlin Pure'].forEach(function(name) {
+            percivalSees.push(name);
+          });
+        }
+        if (roleToPlayers['Morgana']) {
+          roleToPlayers['Morgana'].forEach(function(name) {
+            percivalSees.push(name);
+          });
+        }
+        if (percivalSees.length === 0) {
+          revealText = REVEAL_TEXT_NOTHING;
+        } else {
+          // Sort alphabetically to prevent revealing which is which
+          percivalSees.sort();
+          revealText = 'Merlin Pure or Morgana - ' + percivalSees.join(', ');
+        }
       } else {
-        // Sort alphabetically to prevent revealing which is which
-        percivalSees.sort();
-        revealText = 'Merlin or Morgana - ' + percivalSees.join(', ');
+        // Default behavior: sees Merlin and Morgana
+        if (roleToPlayers['Merlin']) {
+          roleToPlayers['Merlin'].forEach(function(name) {
+            percivalSees.push(name);
+          });
+        }
+        if (roleToPlayers['Morgana']) {
+          roleToPlayers['Morgana'].forEach(function(name) {
+            percivalSees.push(name);
+          });
+        }
+        if (percivalSees.length === 0) {
+          revealText = REVEAL_TEXT_NOTHING;
+        } else {
+          // Sort alphabetically to prevent revealing which is which
+          percivalSees.sort();
+          revealText = 'Merlin or Morgana - ' + percivalSees.join(', ');
+        }
       }
       break;
       
