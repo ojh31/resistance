@@ -28,7 +28,7 @@ $(function() {
   // Role assignment variables
   var connectedUsers = []; // Array to track all connected users
   var availableRoles = [
-    'Servant', 'Minion','Merlin', 'Percival', 'Morgana', 'Assassin',
+    'Servant', 'Minion','Merlin', 'Percival', 'Morgana',
     'Mordred', 'Oberon', 'Merlin Pure', 'Tristan', 'Isolde',
     'Brute',
   ];
@@ -510,18 +510,6 @@ $(function() {
       return;
     }
     
-    // Validate: If Assassin is selected, Merlin or Merlin Pure must also be selected
-    var hasAssassin = selectedRoles.indexOf('Assassin') !== -1;
-    var hasMerlin = selectedRoles.indexOf('Merlin') !== -1;
-    var hasMerlinPure = selectedRoles.indexOf('Merlin Pure') !== -1;
-    
-    if (hasAssassin && !hasMerlin && !hasMerlinPure) {
-      log('Error: If Assassin is selected, Merlin or Merlin Pure must also be selected.', {
-        prepend: false,
-        color: '#f44336'
-      });
-      return;
-    }
     
     // Send selected roles to server for random distribution
     socket.emit('assign roles', {
@@ -683,7 +671,7 @@ $(function() {
         } else if (messageLower === 'n') {
           // Cancel the guess, go back to initial assassin guess state
           pendingAssassinGuess = null;
-          log('Assassin guess cancelled. Click on a good team player name in the circle above to guess who is Merlin.', {
+          log('Assassin guess cancelled. Click on a good team player name in the circle above to make your guess.', {
             prepend: false
           });
           // Update player circle to show clickable names again
@@ -1009,10 +997,22 @@ $(function() {
     log('attempt to reconnect has failed');
   });
 
+  // Track if we've cleared quest results for this role assignment round
+  var questResultsClearedForNewGame = false;
+  
   // Whenever the server emits 'role assigned', show the role to the player
   socket.on('role assigned', (data) => {
     // Remove previous role assignment messages for this player
     $('.messages .role-assignment-message').remove();
+    
+    // Clear quest results when roles are assigned (new game starting)
+    // Only clear once per role assignment round
+    if (!questResultsClearedForNewGame) {
+      questResults = {};
+      questResultsClearedForNewGame = true;
+      // Re-initialize quest tokens to clear visual styling
+      initializeQuestTokens();
+    }
     
     var $message = $('<li class="log role-assignment-message">Role: ' + cleanInput(data.role) + '</li>');
     addMessageElement($message, {
@@ -1048,6 +1048,11 @@ $(function() {
     }
     if (data.questIndex !== undefined) {
       currentQuestIndex = data.questIndex;
+    }
+    
+    // Reset quest results clearing flag when a new game starts (quest 1, vote 1)
+    if (currentQuestIndex === 1 && currentVoteTrack === 1) {
+      questResultsClearedForNewGame = false;
     }
     
     updateRoleAssignmentUI();
@@ -1268,7 +1273,7 @@ $(function() {
   // Handle assassin phase started
   socket.on('assassin phase started', (data) => {
     if (data.assassin) {
-      log('Good team has won 3 quests! Assassin phase begins. ' + data.assassin + ' must guess who Merlin is.', {
+      log('Good team has won 3 quests! Assassin phase begins. ' + data.assassin + ' is the Assassin.', {
         prepend: false,
         color: '#f44336'
       });
@@ -1289,7 +1294,14 @@ $(function() {
       });
     }
     
-    log('You are the Assassin! Click on a good team player name in the circle above to guess who is Merlin.', {
+    // Tell the player they are the assassin and who they need to kill
+    var targetMessage = 'You are the Assassin! You need to kill ' + (data.targetDescription || 'the target') + '.';
+    log(targetMessage, {
+      prepend: false,
+      color: '#f44336'
+    });
+    
+    log('Click on a good team player name in the circle above to make your guess.', {
       prepend: false,
       color: '#f44336'
     });
@@ -1301,6 +1313,22 @@ $(function() {
     }
     
     // Update player circle to make names clickable
+    updatePlayerCircle();
+  });
+  
+  // Handle partial assassin guess (for Tristan/Isolde when one is guessed correctly)
+  socket.on('assassin guess partial', (data) => {
+    if (data.message) {
+      log(data.message, {
+        prepend: false,
+        color: '#f44336'
+      });
+    }
+    
+    // Reset pending guess to allow another guess
+    pendingAssassinGuess = null;
+    
+    // Update player circle to allow another selection
     updatePlayerCircle();
   });
   
@@ -1334,6 +1362,13 @@ $(function() {
     isAssassinPhase = false;
     pendingAssassinGuess = null;
     goodTeamPlayers = [];
+    
+    // Clear quest results and reset flag
+    questResults = {};
+    questResultsClearedForNewGame = false;
+    
+    // Re-initialize quest tokens to clear visual styling
+    initializeQuestTokens();
     
     // Clear waiting status
     $('.waiting-status-message').remove();

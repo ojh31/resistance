@@ -27,6 +27,7 @@ var currentQuestIndex = 1; // Track current quest index
 var currentVoteTrack = 1; // Track current vote track (1-5)
 var questResults = {}; // Track quest results: {questIndex: 'success'|'fail'}
 var assassinPhase = false; // Track if assassin phase is active
+var globalAssassinInfo = null; // Store assassin info: {player: {...}, targets: [...], description: '...', needsBoth: boolean, guessedTargets: []}
 
 // Constants
 var REVEAL_TEXT_NOTHING = 'You know nothing, good luck!';
@@ -334,20 +335,12 @@ function emitWaitingStatus() {
   }
   
   // Check for assassin guess
-  if (assassinPhase) {
-    var assassinPlayer = null;
-    players.forEach(function(player) {
-      if (roleAssignments[player.username] === 'Assassin') {
-        assassinPlayer = player;
-      }
+  if (assassinPhase && globalAssassinInfo) {
+    io.emit('waiting status', {
+      waitingOn: [globalAssassinInfo.player.username],
+      context: 'assassin guess'
     });
-    if (assassinPlayer) {
-      io.emit('waiting status', {
-        waitingOn: [assassinPlayer.username],
-        context: 'assassin guess'
-      });
-      return;
-    }
+    return;
   }
 }
 
@@ -536,23 +529,18 @@ io.on('connection', (socket) => {
     if (data.selectedRoles && Array.isArray(data.selectedRoles) && 
         data.players && Array.isArray(data.players)) {
       
-      // Validate: If Assassin is selected, Merlin or Merlin Pure must also be selected
-      var hasAssassin = data.selectedRoles.indexOf('Assassin') !== -1;
-      var hasMerlin = data.selectedRoles.indexOf('Merlin') !== -1;
-      var hasMerlinPure = data.selectedRoles.indexOf('Merlin Pure') !== -1;
-      
-      if (hasAssassin && !hasMerlin && !hasMerlinPure) {
-        socket.emit('role assignment error', {
-          message: 'Error: If Assassin is selected, Merlin or Merlin Pure must also be selected.'
-        });
-        return;
-      }
       
       // Reset game state for new game
       currentQuestIndex = 1;
       currentVoteTrack = 1;
       questResults = {};
       assassinPhase = false;
+      globalAssassinInfo = null;
+      
+      // Clear any existing waiting status
+      io.emit('waiting status', {
+        waitingOn: null
+      });
       
       assignRoles(data.selectedRoles, data.players);
       
@@ -798,62 +786,134 @@ io.on('connection', (socket) => {
         
         // Check if good team has won 3 quests - trigger assassin phase
         if (successfulQuests >= 3) {
-          assassinPhase = true;
+          // Check if there's a Merlin, Merlin Pure, or Tristan/Isolde pair
+          var hasMerlin = false;
+          var hasMerlinPure = false;
+          var hasTristan = false;
+          var hasIsolde = false;
           
-          // Find the Assassin player
-          var assassinPlayer = null;
-          players.forEach(function(player) {
-            if (roleAssignments[player.username] === 'Assassin') {
-              assassinPlayer = player;
-            }
+          Object.keys(roleAssignments).forEach(function(username) {
+            var role = roleAssignments[username];
+            if (role === 'Merlin') hasMerlin = true;
+            if (role === 'Merlin Pure') hasMerlinPure = true;
+            if (role === 'Tristan') hasTristan = true;
+            if (role === 'Isolde') hasIsolde = true;
           });
           
-          if (assassinPlayer) {
-            // Notify all players that assassin phase has begun (emit first)
-            io.emit('assassin phase started', {
-              assassin: assassinPlayer.username
+          var shouldTriggerAssassin = hasMerlin || hasMerlinPure || (hasTristan && hasIsolde);
+          
+          if (shouldTriggerAssassin) {
+            assassinPhase = true;
+            
+            // Randomly select an evil team member to be the assassin
+            const evilRoles = ['Minion', 'Morgana', 'Mordred', 'Oberon', 'Brute'];
+            var evilPlayers = [];
+            players.forEach(function(player) {
+              var role = roleAssignments[player.username];
+              if (evilRoles.indexOf(role) !== -1) {
+                evilPlayers.push(player);
+              }
             });
             
-            // Then request assassin to guess Merlin (with delay to ensure message order)
-            var assassinSocket = io.sockets.connected[assassinPlayer.socketId];
-            if (assassinSocket) {
-              // Get minions of Mordred (evil players except self and Oberon)
-              const evilRoles = ['Minion', 'Morgana', 'Assassin', 'Mordred', 'Oberon', 'Brute'];
-              const goodRoles = ['Servant', 'Merlin', 'Percival', 'Merlin Pure', 'Tristan', 'Isolde'];
-              const minions = [];
-              Object.keys(roleAssignments).forEach(function(username) {
-                if (username === assassinPlayer.username) return; // Don't include self
-                const playerRole = roleAssignments[username];
-                if (evilRoles.indexOf(playerRole) !== -1 && playerRole !== 'Oberon') {
-                  minions.push(username);
-                }
+            if (evilPlayers.length > 0) {
+              // Randomly select one evil player
+              var assassinPlayer = evilPlayers[Math.floor(Math.random() * evilPlayers.length)];
+              
+              // Determine who the assassin needs to kill
+              var assassinTargets = [];
+              var targetDescription = '';
+              
+              if (hasMerlin) {
+                Object.keys(roleAssignments).forEach(function(username) {
+                  if (roleAssignments[username] === 'Merlin') {
+                    assassinTargets.push(username);
+                  }
+                });
+                targetDescription = 'Merlin';
+              } else if (hasMerlinPure) {
+                Object.keys(roleAssignments).forEach(function(username) {
+                  if (roleAssignments[username] === 'Merlin Pure') {
+                    assassinTargets.push(username);
+                  }
+                });
+                targetDescription = 'Merlin Pure';
+              } else if (hasTristan && hasIsolde) {
+                // Need to kill BOTH Tristan and Isolde
+                Object.keys(roleAssignments).forEach(function(username) {
+                  if (roleAssignments[username] === 'Tristan' || roleAssignments[username] === 'Isolde') {
+                    assassinTargets.push(username);
+                  }
+                });
+                targetDescription = 'both Tristan and Isolde';
+              }
+              
+              // Store assassin info (we'll need to track this for win condition checking)
+              // We'll store it in a variable accessible to the guess handler
+              var currentAssassinInfo = {
+                player: assassinPlayer,
+                targets: assassinTargets,
+                description: targetDescription,
+                needsBoth: !hasMerlin && !hasMerlinPure && hasTristan && hasIsolde,
+                guessedTargets: [] // Track which targets have been correctly guessed
+              };
+              
+              // Notify all players that assassin phase has begun
+              io.emit('assassin phase started', {
+                assassin: assassinPlayer.username
               });
               
-              // Get good team players (only these can be guessed)
-              const goodTeamPlayers = [];
-              Object.keys(roleAssignments).forEach(function(username) {
-                const playerRole = roleAssignments[username];
-                if (goodRoles.indexOf(playerRole) !== -1) {
-                  goodTeamPlayers.push(username);
-                }
-              });
-              
-              setTimeout(function() {
-                assassinSocket.emit('request assassin guess', {
-                  players: getUserList(),
-                  goodTeamPlayers: goodTeamPlayers,
-                  minionsOfMordred: minions.length > 0 ? minions : null
+              // Then request assassin to make their guess (with delay to ensure message order)
+              var assassinSocket = io.sockets.connected[assassinPlayer.socketId];
+              if (assassinSocket) {
+                // Get minions of Mordred (evil players except self and Oberon)
+                const minions = [];
+                Object.keys(roleAssignments).forEach(function(username) {
+                  if (username === assassinPlayer.username) return; // Don't include self
+                  const playerRole = roleAssignments[username];
+                  if (evilRoles.indexOf(playerRole) !== -1 && playerRole !== 'Oberon') {
+                    minions.push(username);
+                  }
                 });
                 
-                // Emit waiting status for assassin guess
-                emitWaitingStatus();
-              }, 500); // Small delay to ensure general message arrives first
+                // Get good team players (only these can be guessed)
+                const goodRoles = ['Servant', 'Merlin', 'Percival', 'Merlin Pure', 'Tristan', 'Isolde'];
+                const goodTeamPlayers = [];
+                Object.keys(roleAssignments).forEach(function(username) {
+                  const playerRole = roleAssignments[username];
+                  if (goodRoles.indexOf(playerRole) !== -1) {
+                    goodTeamPlayers.push(username);
+                  }
+                });
+                
+                setTimeout(function() {
+                  assassinSocket.emit('request assassin guess', {
+                    players: getUserList(),
+                    goodTeamPlayers: goodTeamPlayers,
+                    minionsOfMordred: minions.length > 0 ? minions : null,
+                    targets: assassinTargets,
+                    targetDescription: targetDescription,
+                    needsBoth: currentAssassinInfo.needsBoth
+                  });
+                  
+                  // Store assassin info globally for win condition checking
+                  globalAssassinInfo = currentAssassinInfo;
+                  
+                  // Emit waiting status for assassin guess
+                  emitWaitingStatus();
+                }, 500); // Small delay to ensure general message arrives first
+              }
+            } else {
+              // No evil players in game (shouldn't happen, but handle it)
+              io.emit('game over', {
+                winner: 'good',
+                reason: 'Good team won 3 quests'
+              });
             }
           } else {
-            // No assassin in game, good team wins immediately
+            // No Merlin/Merlin Pure/Tristan-Isolde, good team wins immediately
             io.emit('game over', {
               winner: 'good',
-              reason: 'Good team won 3 quests and there is no Assassin'
+              reason: 'Good team won 3 quests'
             });
           }
         } else {
@@ -905,12 +965,12 @@ io.on('connection', (socket) => {
 
   // Handle assassin guess submission
   socket.on('submit assassin guess', (data) => {
-    if (!assassinPhase) {
+    if (!assassinPhase || !globalAssassinInfo) {
       return;
     }
     
-    // Verify the sender is the Assassin
-    if (roleAssignments[socket.username] !== 'Assassin') {
+    // Verify the sender is the selected assassin
+    if (socket.username !== globalAssassinInfo.player.username) {
       return;
     }
     
@@ -927,38 +987,118 @@ io.on('connection', (socket) => {
         return;
       }
       
-      // Check if the guess is correct (guessed player is Merlin)
-      var isCorrect = roleAssignments[guessedPlayer] === 'Merlin';
+      // Check if the guess is correct based on win conditions
+      var guessedRole = roleAssignments[guessedPlayer];
+      var isCorrectTarget = globalAssassinInfo.targets.indexOf(guessedPlayer) !== -1;
       
-      // End assassin phase
-      assassinPhase = false;
-      
-      // Broadcast game result
-      if (isCorrect) {
-        io.emit('game over', {
-          winner: 'evil',
-          reason: 'Assassin correctly identified Merlin: ' + guessedPlayer,
-          guessedPlayer: guessedPlayer,
-          actualMerlin: guessedPlayer
-        });
-      } else {
-        var actualMerlin = null;
-        Object.keys(roleAssignments).forEach(function(username) {
-          if (roleAssignments[username] === 'Merlin') {
-            actualMerlin = username;
+      if (globalAssassinInfo.needsBoth) {
+        // Need to kill BOTH Tristan and Isolde
+        if (isCorrectTarget) {
+          // Add to guessed targets if not already there
+          if (globalAssassinInfo.guessedTargets.indexOf(guessedPlayer) === -1) {
+            globalAssassinInfo.guessedTargets.push(guessedPlayer);
           }
-        });
-        
-        io.emit('game over', {
-          winner: 'good',
-          reason: 'Assassin incorrectly guessed ' + guessedPlayer + '. Merlin was ' + (actualMerlin || 'unknown'),
-          guessedPlayer: guessedPlayer,
-          actualMerlin: actualMerlin
-        });
+          
+          // Check if both targets have been guessed
+          var allTargetsGuessed = globalAssassinInfo.targets.every(function(target) {
+            return globalAssassinInfo.guessedTargets.indexOf(target) !== -1;
+          });
+          
+          if (allTargetsGuessed) {
+            // Both targets guessed correctly - evil wins
+            assassinPhase = false;
+            var assassinInfo = globalAssassinInfo;
+            globalAssassinInfo = null;
+            
+            // Clear waiting status
+            io.emit('waiting status', {
+              waitingOn: null
+            });
+            
+            var reason = 'Assassin correctly identified both ' + assassinInfo.description + ': ' + assassinInfo.guessedTargets.join(' and ');
+            io.emit('game over', {
+              winner: 'evil',
+              reason: reason,
+              guessedPlayers: assassinInfo.guessedTargets,
+              targetDescription: assassinInfo.description
+            });
+          } else {
+            // One target guessed correctly, but need the other one too
+            var remainingTargets = globalAssassinInfo.targets.filter(function(target) {
+              return globalAssassinInfo.guessedTargets.indexOf(target) === -1;
+            });
+            socket.emit('assassin guess partial', {
+              message: 'Correct! You identified ' + guessedPlayer + '. You still need to identify: ' + remainingTargets.join(' and '),
+              guessedTargets: globalAssassinInfo.guessedTargets,
+              remainingTargets: remainingTargets
+            });
+            // Emit waiting status to allow another guess
+            emitWaitingStatus();
+            return; // Don't end the game yet
+          }
+        } else {
+          // Wrong guess - good wins
+          assassinPhase = false;
+          var assassinInfo = globalAssassinInfo;
+          globalAssassinInfo = null;
+          
+          // Clear waiting status
+          io.emit('waiting status', {
+            waitingOn: null
+          });
+          
+          var actualTargets = assassinInfo.targets.map(function(target) {
+            return target + ' (' + roleAssignments[target] + ')';
+          }).join(' and ');
+          io.emit('game over', {
+            winner: 'good',
+            reason: 'Assassin incorrectly guessed ' + guessedPlayer + '. The targets were: ' + actualTargets,
+            guessedPlayer: guessedPlayer,
+            actualTargets: assassinInfo.targets
+          });
+        }
+      } else {
+        // Need to kill Merlin or Merlin Pure - single target
+        if (isCorrectTarget) {
+          // Correct guess - evil wins
+          assassinPhase = false;
+          var assassinInfo = globalAssassinInfo;
+          globalAssassinInfo = null;
+          
+          // Clear waiting status
+          io.emit('waiting status', {
+            waitingOn: null
+          });
+          
+          var reason = 'Assassin correctly identified ' + assassinInfo.description + ': ' + guessedPlayer;
+          io.emit('game over', {
+            winner: 'evil',
+            reason: reason,
+            guessedPlayer: guessedPlayer,
+            targetDescription: assassinInfo.description
+          });
+        } else {
+          // Wrong guess - good wins
+          assassinPhase = false;
+          var assassinInfo = globalAssassinInfo;
+          globalAssassinInfo = null;
+          
+          // Clear waiting status
+          io.emit('waiting status', {
+            waitingOn: null
+          });
+          
+          var actualTargets = assassinInfo.targets.map(function(target) {
+            return target + ' (' + roleAssignments[target] + ')';
+          }).join(', ');
+          io.emit('game over', {
+            winner: 'good',
+            reason: 'Assassin incorrectly guessed ' + guessedPlayer + '. The target was: ' + actualTargets,
+            guessedPlayer: guessedPlayer,
+            actualTargets: assassinInfo.targets
+          });
+        }
       }
-      
-      // Clear waiting status
-      emitWaitingStatus();
     }
   });
 });
