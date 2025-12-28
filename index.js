@@ -496,8 +496,13 @@ io.on('connection', (socket) => {
   });
 
   // Handle adding a new role set
-  socket.on('add role set', () => {
-    roleSets.push({});
+  socket.on('add role set', (data) => {
+    var newRoleSet = {};
+    // If prefill data is provided, use it
+    if (data && data.prefill && typeof data.prefill === 'object') {
+      newRoleSet = data.prefill;
+    }
+    roleSets.push(newRoleSet);
     // Broadcast updated role sets to all clients
     io.emit('role sets updated', {
       roleSets: roleSets

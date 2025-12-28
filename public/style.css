@@ -405,11 +405,14 @@ ul {
   border: none;
   color: white;
   cursor: pointer;
-  display: block;
   font-size: 90%;
   font-weight: 600;
-  margin: 0 auto;
   padding: 8px 16px;
+}
+
+.addRoleSetContainer .addRoleSetButton {
+  display: inline-block;
+  margin: 0;
 }
 
 .addRoleSetButton:hover {
@@ -445,6 +448,46 @@ ul {
 
 .deleteRoleSetButton:active {
   background-color: #b71c1c;
+}
+
+.addRoleSetContainer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  margin-top: 10px;
+  width: 100%;
+  position: relative;
+}
+
+.prefillSuggestedContainer {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 90%;
+}
+
+.prefillSuggestedContainer input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.prefillSuggestedContainer label {
+  cursor: pointer;
+  user-select: none;
+}
+
+.prefillSuggestedContainer.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.prefillSuggestedContainer.disabled input[type="checkbox"] {
+  cursor: not-allowed;
+}
+
+.prefillSuggestedContainer.disabled label {
+  cursor: not-allowed;
+  color: #999;
 }
 
 /* Font */
