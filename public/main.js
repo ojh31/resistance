@@ -997,10 +997,22 @@ $(function() {
     log('attempt to reconnect has failed');
   });
 
+  // Track if we've cleared quest results for this role assignment round
+  var questResultsClearedForNewGame = false;
+  
   // Whenever the server emits 'role assigned', show the role to the player
   socket.on('role assigned', (data) => {
     // Remove previous role assignment messages for this player
     $('.messages .role-assignment-message').remove();
+    
+    // Clear quest results when roles are assigned (new game starting)
+    // Only clear once per role assignment round
+    if (!questResultsClearedForNewGame) {
+      questResults = {};
+      questResultsClearedForNewGame = true;
+      // Re-initialize quest tokens to clear visual styling
+      initializeQuestTokens();
+    }
     
     var $message = $('<li class="log role-assignment-message">Role: ' + cleanInput(data.role) + '</li>');
     addMessageElement($message, {
@@ -1036,6 +1048,11 @@ $(function() {
     }
     if (data.questIndex !== undefined) {
       currentQuestIndex = data.questIndex;
+    }
+    
+    // Reset quest results clearing flag when a new game starts (quest 1, vote 1)
+    if (currentQuestIndex === 1 && currentVoteTrack === 1) {
+      questResultsClearedForNewGame = false;
     }
     
     updateRoleAssignmentUI();
@@ -1284,13 +1301,6 @@ $(function() {
       color: '#f44336'
     });
     
-    if (data.targets && data.targets.length > 0) {
-      log('Target(s): ' + data.targets.join(', '), {
-        prepend: false,
-        color: '#f44336'
-      });
-    }
-    
     log('Click on a good team player name in the circle above to make your guess.', {
       prepend: false,
       color: '#f44336'
@@ -1352,6 +1362,13 @@ $(function() {
     isAssassinPhase = false;
     pendingAssassinGuess = null;
     goodTeamPlayers = [];
+    
+    // Clear quest results and reset flag
+    questResults = {};
+    questResultsClearedForNewGame = false;
+    
+    // Re-initialize quest tokens to clear visual styling
+    initializeQuestTokens();
     
     // Clear waiting status
     $('.waiting-status-message').remove();

@@ -537,6 +537,11 @@ io.on('connection', (socket) => {
       assassinPhase = false;
       globalAssassinInfo = null;
       
+      // Clear any existing waiting status
+      io.emit('waiting status', {
+        waitingOn: null
+      });
+      
       assignRoles(data.selectedRoles, data.players);
       
       // Send updated state to all clients
@@ -1005,6 +1010,11 @@ io.on('connection', (socket) => {
             var assassinInfo = globalAssassinInfo;
             globalAssassinInfo = null;
             
+            // Clear waiting status
+            io.emit('waiting status', {
+              waitingOn: null
+            });
+            
             var reason = 'Assassin correctly identified both ' + assassinInfo.description + ': ' + assassinInfo.guessedTargets.join(' and ');
             io.emit('game over', {
               winner: 'evil',
@@ -1032,6 +1042,11 @@ io.on('connection', (socket) => {
           var assassinInfo = globalAssassinInfo;
           globalAssassinInfo = null;
           
+          // Clear waiting status
+          io.emit('waiting status', {
+            waitingOn: null
+          });
+          
           var actualTargets = assassinInfo.targets.map(function(target) {
             return target + ' (' + roleAssignments[target] + ')';
           }).join(' and ');
@@ -1050,6 +1065,11 @@ io.on('connection', (socket) => {
           var assassinInfo = globalAssassinInfo;
           globalAssassinInfo = null;
           
+          // Clear waiting status
+          io.emit('waiting status', {
+            waitingOn: null
+          });
+          
           var reason = 'Assassin correctly identified ' + assassinInfo.description + ': ' + guessedPlayer;
           io.emit('game over', {
             winner: 'evil',
@@ -1063,6 +1083,11 @@ io.on('connection', (socket) => {
           var assassinInfo = globalAssassinInfo;
           globalAssassinInfo = null;
           
+          // Clear waiting status
+          io.emit('waiting status', {
+            waitingOn: null
+          });
+          
           var actualTargets = assassinInfo.targets.map(function(target) {
             return target + ' (' + roleAssignments[target] + ')';
           }).join(', ');
@@ -1074,9 +1099,6 @@ io.on('connection', (socket) => {
           });
         }
       }
-      
-      // Clear waiting status
-      emitWaitingStatus();
     }
   });
 });
