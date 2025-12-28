@@ -58,6 +58,17 @@ $(function() {
   // Role sets state - array of role set objects, each is {username: role}
   var roleSets = [{}]; // Start with one empty role set
   
+  // Suggested role sets for 5 players (array of role arrays)
+  var suggestedRoleSets = [
+    ['Merlin', 'Percival', 'Servant', 'Morgana', 'Minion'],
+    ['Merlin', 'Tristan', 'Isolde', 'Minion', 'Minion'],
+    ['Servant', 'Tristan', 'Isolde', 'Oberon', 'Minion'],
+    ['Merlin Pure', 'Percival', 'Servant', 'Morgana', 'Minion'],
+    ['Merlin', 'Servant', 'Servant', 'Morgana', 'Oberon']
+  ];
+  var suggestedRoleSetIndex = 0; // Track which suggested set to use next
+  var prefillSuggested = false; // Track checkbox state
+  
   // Team selection state
   var isSelectingTeam = false;
   var selectedTeam = [];
@@ -501,12 +512,65 @@ $(function() {
       $playerRoles.append($roleSetRow);
     });
     
-    // Add "Add Role Set" button after the last role set row
+    // Add "Add Role Set" button and checkbox after the last role set row
+    var $addRoleSetContainer = $('<div class="addRoleSetContainer"></div>');
+    
     var $addRoleSetButton = $('<button class="addRoleSetButton" id="addRoleSetButton">Add Role Set</button>');
     $addRoleSetButton.on('click', function() {
-      socket.emit('add role set'); // Request server to add a new role set
+      // Check if prefill is enabled and there are remaining suggested sets
+      var shouldPrefill = prefillSuggested && suggestedRoleSetIndex < suggestedRoleSets.length;
+      var prefillData = null;
+      
+      if (shouldPrefill && connectedUsers.length >= 5) {
+        // Get the next suggested role set
+        var suggestedRoles = suggestedRoleSets[suggestedRoleSetIndex];
+        // Map roles to first 5 connected users
+        prefillData = {};
+        for (var i = 0; i < 5 && i < connectedUsers.length; i++) {
+          prefillData[connectedUsers[i]] = suggestedRoles[i];
+        }
+        suggestedRoleSetIndex++; // Move to next suggested set
+      }
+      
+      socket.emit('add role set', {
+        prefill: prefillData
+      });
     });
-    $playerRoles.append($addRoleSetButton);
+    $addRoleSetContainer.append($addRoleSetButton);
+    
+    // Add checkbox for "Prefill Suggested"
+    var $prefillCheckbox = $('<input type="checkbox" id="prefillSuggestedCheckbox">');
+    
+    // Check if there are remaining suggested role sets and at least 5 players
+    var hasRemainingSuggestions = suggestedRoleSetIndex < suggestedRoleSets.length && connectedUsers.length >= 5;
+    
+    // If no remaining suggestions, disable and uncheck
+    if (!hasRemainingSuggestions) {
+      prefillSuggested = false;
+    }
+    
+    $prefillCheckbox.prop('checked', prefillSuggested);
+    $prefillCheckbox.prop('disabled', !hasRemainingSuggestions);
+    
+    $prefillCheckbox.on('change', function() {
+      if (!$(this).prop('disabled')) {
+        prefillSuggested = $(this).prop('checked');
+      }
+    });
+    
+    var $prefillLabel = $('<label for="prefillSuggestedCheckbox">Prefill Suggested</label>');
+    var $prefillContainer = $('<span class="prefillSuggestedContainer"></span>');
+    
+    // Add disabled class if no remaining suggestions
+    if (!hasRemainingSuggestions) {
+      $prefillContainer.addClass('disabled');
+    }
+    
+    $prefillContainer.append($prefillCheckbox);
+    $prefillContainer.append($prefillLabel);
+    $addRoleSetContainer.append($prefillContainer);
+    
+    $playerRoles.append($addRoleSetContainer);
   }
 
   // Handle assign button click
