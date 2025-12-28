@@ -51,6 +51,9 @@ $(function() {
   var $assignButton = $('#assignButton');
   var $playerCircleContainer = $('#playerCircleContainer');
   var $questTokensContainer = $('#questTokensContainer');
+  var $collapseButton = $('#collapseButton');
+  var $roleAssignmentContent = $('.roleAssignmentContent');
+  var roleAssignmentCollapsed = false;
 
   // Role sets state - array of role set objects, each is {username: role}
   var roleSets = [{}]; // Start with one empty role set
@@ -940,6 +943,33 @@ $(function() {
   // Focus input when clicking on the message input's border
   $inputMessage.click(() => {
     $inputMessage.focus();
+  });
+
+  // Collapse button handler
+  const toggleRoleAssignment = function() {
+    roleAssignmentCollapsed = !roleAssignmentCollapsed;
+    if (roleAssignmentCollapsed) {
+      $roleAssignmentContent.slideUp(200);
+      $collapseButton.text('▶');
+      $collapseButton.attr('title', 'Expand role selection');
+    } else {
+      $roleAssignmentContent.slideDown(200);
+      $collapseButton.text('▼');
+      $collapseButton.attr('title', 'Collapse role selection');
+    }
+  };
+  
+  $collapseButton.on('click', function(e) {
+    e.stopPropagation();
+    toggleRoleAssignment();
+  });
+  
+  // Make header clickable to toggle as well
+  $('.roleAssignmentHeader').on('click', function(e) {
+    // Only toggle if clicking on the header itself, not the button (button click is handled separately)
+    if ($(e.target).closest('.collapseButton').length === 0) {
+      toggleRoleAssignment();
+    }
   });
 
   // Socket events

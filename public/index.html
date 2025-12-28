@@ -11,9 +11,14 @@
       <div class="playerCircleContainer" id="playerCircleContainer"></div>
       <div class="questTokensContainer" id="questTokensContainer"></div>
       <div class="roleAssignment">
-        <div class="roleAssignmentHeader">Select Available Roles</div>
-        <div class="playerRoles" id="playerRoles"></div>
-        <button class="assignButton" id="assignButton">Assign Roles</button>
+        <div class="roleAssignmentHeader">
+          <span>Select Available Roles</span>
+          <button class="collapseButton" id="collapseButton" title="Collapse/Expand role selection">▼</button>
+        </div>
+        <div class="roleAssignmentContent">
+          <div class="playerRoles" id="playerRoles"></div>
+          <button class="assignButton" id="assignButton">Assign Roles</button>
+        </div>
       </div>
       <div class="chatArea">
         <ul class="messages"></ul>

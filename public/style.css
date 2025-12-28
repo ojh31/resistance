@@ -311,6 +311,41 @@ ul {
   font-weight: 700;
   margin-bottom: 10px;
   text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.collapseButton {
+  background-color: #666;
+  border: none;
+  color: white;
+  cursor: pointer;
+  font-size: 80%;
+  font-weight: 700;
+  height: 24px;
+  width: 24px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 1;
+  transition: background-color 0.2s ease;
+}
+
+.collapseButton:hover {
+  background-color: #555;
+}
+
+.collapseButton:active {
+  background-color: #444;
+}
+
+.roleAssignmentContent {
+  /* Content wrapper for collapse animation */
 }
 
 .playerRoles {
