@@ -32,10 +32,28 @@ $(function() {
     'Mordred', 'Oberon', 'Merlin Pure', 'Tristan', 'Isolde',
     'Brute',
   ];
+  
+  // Role descriptions for tooltips
+  var roleDescriptions = {
+    'Servant': 'Good team member with no special abilities.',
+    'Minion': 'Basic evil team member, knows teammates.',
+    'Merlin': 'Good team. Sees all evil players except Mordred.',
+    'Percival': 'Good team. Sees Merlin and Morgana, but cannot tell which is which.',
+    'Morgana': 'Evil team. Appears as Merlin to Percival.',
+    'Mordred': 'Evil team. Invisible to Merlin. Sees other evil players.',
+    'Oberon': 'Evil team. Does not know other evil players, and they do not know him.',
+    'Merlin Pure': 'Good team. Sees the exact role of every player.',
+    'Tristan': 'Good team. Knows who Isolde is.',
+    'Isolde': 'Good team. Knows who Tristan is.',
+    'Brute': 'Evil team. Cannot fail quests 4 and 5.'
+  };
   var $playerRoles = $('#playerRoles');
   var $assignButton = $('#assignButton');
   var $playerCircleContainer = $('#playerCircleContainer');
   var $questTokensContainer = $('#questTokensContainer');
+  var $collapseButton = $('#collapseButton');
+  var $roleAssignmentContent = $('.roleAssignmentContent');
+  var roleAssignmentCollapsed = false;
 
   // Role sets state - array of role set objects, each is {username: role}
   var roleSets = [{}]; // Start with one empty role set
@@ -438,7 +456,10 @@ $(function() {
         
         // Add all available roles
         availableRoles.forEach(function(role) {
-          var $option = $('<option></option>').attr('value', role).text(role);
+          var $option = $('<option></option>')
+            .attr('value', role)
+            .text(role)
+            .attr('title', roleDescriptions[role] || '');
           // Mark as selected if this role is already selected for this user in this role set
           if (roleSet[user] === role) {
             $option.attr('selected', 'selected');
@@ -446,11 +467,25 @@ $(function() {
           $option.appendTo($roleSelect);
         });
         
+        // Set initial title based on selected role
+        var initialRole = roleSet[user] || '';
+        if (initialRole && roleDescriptions[initialRole]) {
+          $roleSelect.attr('title', roleDescriptions[initialRole]);
+        }
+        
         // Handle dropdown change - sync with server
         $roleSelect.on('change', function() {
           var selectedRole = $(this).val();
           var username = $(this).attr('data-username');
           var index = parseInt($(this).attr('data-role-set-index'));
+          
+          // Update title attribute with role description
+          if (selectedRole && roleDescriptions[selectedRole]) {
+            $(this).attr('title', roleDescriptions[selectedRole]);
+          } else {
+            $(this).attr('title', '');
+          }
+          
           // Emit change to server
           socket.emit('role selection changed', {
             roleSetIndex: index,
@@ -908,6 +943,33 @@ $(function() {
   // Focus input when clicking on the message input's border
   $inputMessage.click(() => {
     $inputMessage.focus();
+  });
+
+  // Collapse button handler
+  const toggleRoleAssignment = function() {
+    roleAssignmentCollapsed = !roleAssignmentCollapsed;
+    if (roleAssignmentCollapsed) {
+      $roleAssignmentContent.slideUp(200);
+      $collapseButton.text('▶');
+      $collapseButton.attr('title', 'Expand role selection');
+    } else {
+      $roleAssignmentContent.slideDown(200);
+      $collapseButton.text('▼');
+      $collapseButton.attr('title', 'Collapse role selection');
+    }
+  };
+  
+  $collapseButton.on('click', function(e) {
+    e.stopPropagation();
+    toggleRoleAssignment();
+  });
+  
+  // Make header clickable to toggle as well
+  $('.roleAssignmentHeader').on('click', function(e) {
+    // Only toggle if clicking on the header itself, not the button (button click is handled separately)
+    if ($(e.target).closest('.collapseButton').length === 0) {
+      toggleRoleAssignment();
+    }
   });
 
   // Socket events
