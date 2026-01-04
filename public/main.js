@@ -306,10 +306,19 @@ $(function() {
               prepend: false
             });
             updatePlayerCircle();
-            hideActionButtons();
+            updateActionButtons(); // Show message again
           }
         }
       ]);
+      return;
+    }
+    
+    // Assassin phase - waiting for player selection
+    if (isAssassinPhase && pendingAssassinGuess === null) {
+      // Show message to select a player
+      var $message = $('<div class="actionButtonMessage">Click on a good team player to make your guess</div>');
+      $actionButtons.stop(true, true).empty().append($message);
+      $actionButtons.fadeIn(200);
       return;
     }
     
@@ -1569,7 +1578,8 @@ $(function() {
     
     // Update player circle to make names clickable
     updatePlayerCircle();
-    // Don't show buttons yet - wait for player selection
+    // Show message to select a player
+    updateActionButtons();
   });
   
   // Handle partial assassin guess (for Tristan/Isolde when one is guessed correctly)
@@ -1586,7 +1596,7 @@ $(function() {
     
     // Update player circle to allow another selection
     updatePlayerCircle();
-    hideActionButtons();
+    updateActionButtons(); // Show message again
   });
   
   // Handle assassin guess error
@@ -1600,7 +1610,7 @@ $(function() {
     // Reset guess to allow trying again
     pendingAssassinGuess = null;
     updatePlayerCircle();
-    hideActionButtons();
+    updateActionButtons(); // Show message again
   });
 
   // Handle waiting status updates
