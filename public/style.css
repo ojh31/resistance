@@ -125,6 +125,10 @@ ul {
   pointer-events: none;
 }
 
+.questTokensContainer .questTokens {
+  pointer-events: auto;
+}
+
 .questTokens {
   display: flex;
   flex-direction: row;
@@ -189,6 +193,42 @@ ul {
   border: 2px solid #fff;
   border-radius: 50%;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.questTokenTooltip {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 10px;
+  padding: 10px 12px;
+  background-color: rgba(0, 0, 0, 0.9);
+  color: #fff;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-line;
+  z-index: 1000;
+  min-width: 250px;
+  max-width: 400px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.questTokenTooltip::after {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-bottom-color: rgba(0, 0, 0, 0.9);
+}
+
+.questToken:hover .questTokenTooltip {
+  opacity: 1;
 }
 
 /* Vote Track Visualization */

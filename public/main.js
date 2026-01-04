@@ -87,6 +87,12 @@ $(function() {
   // Quest results tracking: {questIndex: 'success'|'fail'}
   var questResults = {};
   
+  // Vote history tracking: {questIndex: [{voteTrack, team, leader, approveVoters, rejectVoters, approved}]}
+  var voteHistory = {};
+  
+  // Quest mission history tracking: {questIndex: {team, successCount, failCount, questSucceeded}}
+  var questMissionHistory = {};
+  
   // Assassin phase state
   var isAssassinPhase = false;
   var pendingAssassinGuess = null; // Stores the assassin guess waiting for confirmation
@@ -541,6 +547,53 @@ $(function() {
     return questSize[key] || 0;
   };
 
+  // Generate tooltip text for a quest tile
+  const getQuestTooltip = (questIndex) => {
+    var tooltipParts = [];
+    
+    // Add vote history
+    if (voteHistory[questIndex] && voteHistory[questIndex].length > 0) {
+      voteHistory[questIndex].forEach(function(vote, index) {
+        tooltipParts.push('Vote ' + vote.voteTrack + ':');
+        tooltipParts.push('  Team: ' + (vote.team.length > 0 ? vote.team.join(', ') : 'None'));
+        tooltipParts.push('  Leader: ' + (vote.leader || 'None'));
+        if (vote.approveVoters.length > 0) {
+          tooltipParts.push('  Approve: ' + vote.approveVoters.join(', ') + ' (' + vote.approveCount + ')');
+        }
+        if (vote.rejectVoters.length > 0) {
+          tooltipParts.push('  Reject: ' + vote.rejectVoters.join(', ') + ' (' + vote.rejectCount + ')');
+        }
+        tooltipParts.push('  Result: ' + (vote.approved ? 'APPROVED' : 'REJECTED'));
+      });
+    }
+    
+    // Add mission result
+    if (questMissionHistory[questIndex]) {
+      var mission = questMissionHistory[questIndex];
+      // Add newline before Mission Result if there's vote history above
+      if (tooltipParts.length > 0) {
+        tooltipParts.push('\n\nMission Result:');
+      } else {
+        tooltipParts.push('Mission Result:');
+      }
+      tooltipParts.push('  Team: ' + (mission.team.length > 0 ? mission.team.join(', ') : 'None'));
+      tooltipParts.push('  Success: ' + mission.successCount);
+      tooltipParts.push('  Fail: ' + mission.failCount);
+      tooltipParts.push('  Outcome: ' + (mission.questSucceeded ? 'SUCCESS' : 'FAIL'));
+    } else if (questResults[questIndex]) {
+      // If we have a result but no detailed history, show at least the outcome
+      // Add newline before Mission Result if there's vote history above
+      if (tooltipParts.length > 0) {
+        tooltipParts.push('\n\nMission Result:');
+      } else {
+        tooltipParts.push('Mission Result:');
+      }
+      tooltipParts.push('  Outcome: ' + (questResults[questIndex] === 'success' ? 'SUCCESS' : 'FAIL'));
+    }
+    
+    return tooltipParts.join('\n');
+  };
+
   // Initialize quest tokens
   const initializeQuestTokens = () => {
     $questTokensContainer.empty();
@@ -580,6 +633,17 @@ $(function() {
         $questToken.addClass('success');
       } else if (questResults[i] === 'fail') {
         $questToken.addClass('fail');
+      }
+      
+      // Add custom tooltip with vote and mission history
+      var tooltipText = getQuestTooltip(i);
+      if (tooltipText && tooltipText.trim() !== '') {
+        // Only show tooltip if there's actual history to display
+        var $tooltip = $('<div class="questTokenTooltip"></div>')
+          .text(tooltipText);
+        $questToken.append($tooltip);
+        // Enable pointer events for tooltip hover
+        $questToken.css('cursor', 'help');
       }
       
       $questTokens.append($questToken);
@@ -1265,6 +1329,8 @@ $(function() {
     // Only clear once per role assignment round
     if (!questResultsClearedForNewGame) {
       questResults = {};
+      voteHistory = {};
+      questMissionHistory = {};
       questResultsClearedForNewGame = true;
       // Re-initialize quest tokens to clear visual styling
       initializeQuestTokens();
@@ -1421,6 +1487,21 @@ $(function() {
         updatePlayerCircle();
       }
       
+      // Store vote history for current quest
+      if (!voteHistory[currentQuestIndex]) {
+        voteHistory[currentQuestIndex] = [];
+      }
+      voteHistory[currentQuestIndex].push({
+        voteTrack: data.voteTrack || currentVoteTrack,
+        team: data.team || [],
+        leader: data.leader || '',
+        approveVoters: data.approveVoters || [],
+        rejectVoters: data.rejectVoters || [],
+        approved: data.approved,
+        approveCount: data.approveCount || 0,
+        rejectCount: data.rejectCount || 0
+      });
+      
       // Display individual votes
       var approveText = 'Approve: ' + (data.approveVoters && data.approveVoters.length > 0 ? data.approveVoters.join(', ') : 'None');
       var rejectText = 'Reject: ' + (data.rejectVoters && data.rejectVoters.length > 0 ? data.rejectVoters.join(', ') : 'None');
@@ -1467,6 +1548,9 @@ $(function() {
           });
         }
       }
+      
+      // Update quest tokens to refresh tooltips
+      initializeQuestTokens();
     }
   });
 
@@ -1489,6 +1573,14 @@ $(function() {
       
       // Store quest result
       questResults[data.questIndex] = questSucceeded ? 'success' : 'fail';
+      
+      // Store quest mission history
+      questMissionHistory[data.questIndex] = {
+        team: data.team || [],
+        successCount: data.successCount,
+        failCount: data.failCount,
+        questSucceeded: questSucceeded
+      };
       
       // Publish quest results to everyone
       log('Quest ' + data.questIndex + ' results: ' + data.successCount + ' Success, ' + data.failCount + ' Fail', {
@@ -1634,6 +1726,8 @@ $(function() {
     
     // Clear quest results and reset flag
     questResults = {};
+    voteHistory = {};
+    questMissionHistory = {};
     questResultsClearedForNewGame = false;
     
     // Re-initialize quest tokens to clear visual styling
