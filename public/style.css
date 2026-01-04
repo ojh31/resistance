@@ -129,6 +129,10 @@ ul {
   pointer-events: auto;
 }
 
+.questTokensContainer .voteTrack {
+  pointer-events: auto;
+}
+
 .questTokens {
   display: flex;
   flex-direction: row;
@@ -273,6 +277,42 @@ ul {
 .voteTrackTile.active {
   border-color: #FFA500;
   border-width: 3px;
+}
+
+.voteTrackTileTooltip {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 10px;
+  padding: 10px 12px;
+  background-color: rgba(0, 0, 0, 0.9);
+  color: #fff;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-line;
+  z-index: 1000;
+  min-width: 200px;
+  max-width: 350px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.voteTrackTileTooltip::after {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-bottom-color: rgba(0, 0, 0, 0.9);
+}
+
+.voteTrackTile:hover .voteTrackTileTooltip {
+  opacity: 1;
 }
 
 .playerCircle {

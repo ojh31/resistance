@@ -79,6 +79,7 @@ $(function() {
   var isVoting = false;
   var pendingVote = null; // Stores the vote ('y' or 'n') waiting for confirmation
   var currentVoteTrack = 1;
+  var voteTrackAtRequest = 1; // Track the vote track number when vote was requested
   
   // Quest voting state
   var isQuestVoting = false;
@@ -572,7 +573,7 @@ $(function() {
       var mission = questMissionHistory[questIndex];
       // Add newline before Mission Result if there's vote history above
       if (tooltipParts.length > 0) {
-        tooltipParts.push('\n\nMission Result:');
+        tooltipParts.push('\nMission Result:');
       } else {
         tooltipParts.push('Mission Result:');
       }
@@ -584,7 +585,7 @@ $(function() {
       // If we have a result but no detailed history, show at least the outcome
       // Add newline before Mission Result if there's vote history above
       if (tooltipParts.length > 0) {
-        tooltipParts.push('\n\nMission Result:');
+        tooltipParts.push('\nMission Result:');
       } else {
         tooltipParts.push('Mission Result:');
       }
@@ -655,6 +656,42 @@ $(function() {
     initializeVoteTrack();
   };
 
+  // Find vote data for a specific vote track number
+  const findVoteByTrack = (voteTrackNumber) => {
+    // Search through all quests' vote histories to find the vote with matching voteTrack
+    for (var questIndex in voteHistory) {
+      if (voteHistory[questIndex] && Array.isArray(voteHistory[questIndex])) {
+        for (var i = 0; i < voteHistory[questIndex].length; i++) {
+          if (voteHistory[questIndex][i].voteTrack === voteTrackNumber) {
+            return voteHistory[questIndex][i];
+          }
+        }
+      }
+    }
+    return null;
+  };
+
+  // Generate tooltip text for a vote track tile
+  const getVoteTrackTooltip = (voteTrackNumber) => {
+    var vote = findVoteByTrack(voteTrackNumber);
+    if (!vote) {
+      return null;
+    }
+    
+    var tooltipParts = [];
+    tooltipParts.push('Team: ' + (vote.team.length > 0 ? vote.team.join(', ') : 'None'));
+    tooltipParts.push('Leader: ' + (vote.leader || 'None'));
+    if (vote.approveVoters.length > 0) {
+      tooltipParts.push('Approve: ' + vote.approveVoters.join(', ') + ' (' + vote.approveCount + ')');
+    }
+    if (vote.rejectVoters.length > 0) {
+      tooltipParts.push('Reject: ' + vote.rejectVoters.join(', ') + ' (' + vote.rejectCount + ')');
+    }
+    tooltipParts.push('Result: ' + (vote.approved ? 'APPROVED' : 'REJECTED'));
+    
+    return tooltipParts.join('\n');
+  };
+
   // Initialize vote track
   const initializeVoteTrack = () => {
     // Remove existing vote track if any
@@ -676,6 +713,15 @@ $(function() {
         $voteTile.addClass('active');
         var $marker = $('<div class="questTokenMarker"></div>');
         $voteTile.append($marker);
+      }
+      
+      // Add tooltip if vote data exists for this vote track
+      var tooltipText = getVoteTrackTooltip(i);
+      if (tooltipText) {
+        var $tooltip = $('<div class="voteTrackTileTooltip"></div>')
+          .text(tooltipText);
+        $voteTile.append($tooltip);
+        $voteTile.css('cursor', 'help');
       }
       
       $voteTrackTiles.append($voteTile);
@@ -1332,6 +1378,7 @@ $(function() {
       voteHistory = {};
       questMissionHistory = {};
       questResultsClearedForNewGame = true;
+      voteTrackAtRequest = 1; // Reset vote track at request for new game
       // Re-initialize quest tokens to clear visual styling
       initializeQuestTokens();
     }
@@ -1375,6 +1422,7 @@ $(function() {
     // Reset quest results clearing flag when a new game starts (quest 1, vote 1)
     if (currentQuestIndex === 1 && currentVoteTrack === 1) {
       questResultsClearedForNewGame = false;
+      voteTrackAtRequest = 1; // Reset vote track at request for new game
     }
     
     updateRoleAssignmentUI();
@@ -1438,6 +1486,7 @@ $(function() {
       // Update vote track and quest index from server
       if (data.voteTrack !== undefined) {
         currentVoteTrack = data.voteTrack;
+        voteTrackAtRequest = data.voteTrack; // Store the vote track when vote is requested
       }
       if (data.questIndex !== undefined) {
         currentQuestIndex = data.questIndex;
@@ -1488,11 +1537,13 @@ $(function() {
       }
       
       // Store vote history for current quest
+      // Use voteTrackAtRequest (the vote track when vote was requested) instead of the current voteTrack
+      // because the server increments voteTrack after a rejected vote
       if (!voteHistory[currentQuestIndex]) {
         voteHistory[currentQuestIndex] = [];
       }
       voteHistory[currentQuestIndex].push({
-        voteTrack: data.voteTrack || currentVoteTrack,
+        voteTrack: voteTrackAtRequest,
         team: data.team || [],
         leader: data.leader || '',
         approveVoters: data.approveVoters || [],
@@ -1501,6 +1552,9 @@ $(function() {
         approveCount: data.approveCount || 0,
         rejectCount: data.rejectCount || 0
       });
+      
+      // Refresh vote track to update tooltips with new vote data
+      initializeVoteTrack();
       
       // Display individual votes
       var approveText = 'Approve: ' + (data.approveVoters && data.approveVoters.length > 0 ? data.approveVoters.join(', ') : 'None');
@@ -1729,6 +1783,7 @@ $(function() {
     voteHistory = {};
     questMissionHistory = {};
     questResultsClearedForNewGame = false;
+    voteTrackAtRequest = 1; // Reset vote track at request
     
     // Re-initialize quest tokens to clear visual styling
     initializeQuestTokens();
