@@ -11,7 +11,7 @@ $(function() {
   var $window = $(window);
   var $usernameInput = $('.usernameInput'); // Input for username
   var $messages = $('.messages'); // Messages area
-  var $inputMessage = $('.inputMessage'); // Input message input box
+  var $actionButtons = $('#actionButtons'); // Action buttons container
 
   var $loginPage = $('.login.page'); // The login page
   var $chatPage = $('.chat.page'); // The chatroom page
@@ -92,6 +92,277 @@ $(function() {
   var pendingAssassinGuess = null; // Stores the assassin guess waiting for confirmation
   var goodTeamPlayers = []; // List of good team players (only these can be guessed)
 
+  // Action buttons management
+  const showActionButtons = (buttons) => {
+    // Stop any ongoing animations and immediately show
+    $actionButtons.stop(true, true).empty();
+    
+    buttons.forEach(function(button) {
+      var $button = $('<button class="actionButton">')
+        .text(button.text)
+        .addClass(button.class || '')
+        .css({
+          backgroundColor: button.color || '#4CAF50',
+          color: '#fff',
+          border: 'none',
+          padding: '15px 30px',
+          fontSize: '16px',
+          fontWeight: '700',
+          cursor: 'pointer',
+          borderRadius: '8px',
+          margin: '5px',
+          transition: 'all 0.2s ease',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+        });
+      
+      $button.on('mouseenter', function() {
+        $(this).css({
+          transform: 'scale(1.05)',
+          boxShadow: '0 4px 8px rgba(0,0,0,0.3)'
+        });
+      });
+      
+      $button.on('mouseleave', function() {
+        $(this).css({
+          transform: 'scale(1)',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+        });
+      });
+      
+      $button.on('click', button.handler);
+      $actionButtons.append($button);
+    });
+    
+    $actionButtons.fadeIn(200);
+  };
+
+  const hideActionButtons = () => {
+    // Stop any ongoing animations and immediately hide
+    $actionButtons.stop(true, true).fadeOut(200, function() {
+      $(this).empty();
+    });
+  };
+
+  const updateActionButtons = () => {
+    // Show buttons based on current game state
+    // (hideActionButtons will be called if no buttons should be shown)
+    
+    // Quest vote confirmation
+    if (isQuestVoting && pendingQuestVote !== null) {
+      showActionButtons([
+        {
+          text: 'Confirm',
+          color: '#4CAF50',
+          handler: function() {
+            socket.emit('submit quest vote', {
+              vote: pendingQuestVote
+            });
+            log('You voted: ' + (pendingQuestVote === 'y' ? 'Success' : 'Fail'), {
+              prepend: false,
+              color: pendingQuestVote === 'y' ? '#4CAF50' : '#f44336'
+            });
+            pendingQuestVote = null;
+            isQuestVoting = false;
+            hideActionButtons();
+          }
+        },
+        {
+          text: 'Cancel',
+          color: '#f44336',
+          handler: function() {
+            pendingQuestVote = null;
+            log('Quest vote cancelled. You were selected for quest ' + currentQuestIndex + '. Succeed or Fail?', {
+              prepend: false
+            });
+            updateActionButtons(); // Refresh buttons to show succeed/fail
+          }
+        }
+      ]);
+      return;
+    }
+    
+    // Initial quest vote (succeed/fail)
+    if (isQuestVoting && pendingQuestVote === null) {
+      showActionButtons([
+        {
+          text: 'Succeed',
+          color: '#4CAF50',
+          handler: function() {
+            pendingQuestVote = 'y';
+            log('You have selected Success. Confirm?', {
+              prepend: false,
+              color: '#4CAF50'
+            });
+            updateActionButtons(); // Refresh buttons to show confirm/cancel
+          }
+        },
+        {
+          text: 'Fail',
+          color: '#f44336',
+          handler: function() {
+            pendingQuestVote = 'n';
+            log('You have selected Fail. Confirm?', {
+              prepend: false,
+              color: '#f44336'
+            });
+            updateActionButtons(); // Refresh buttons to show confirm/cancel
+          }
+        }
+      ]);
+      return;
+    }
+    
+    // Vote confirmation
+    if (isVoting && pendingVote !== null) {
+      showActionButtons([
+        {
+          text: 'Confirm',
+          color: '#4CAF50',
+          handler: function() {
+            socket.emit('submit vote', {
+              vote: pendingVote
+            });
+            log('You voted: ' + (pendingVote === 'y' ? 'Approve' : 'Reject'), {
+              prepend: false,
+              color: pendingVote === 'y' ? '#4CAF50' : '#f44336'
+            });
+            pendingVote = null;
+            isVoting = false;
+            hideActionButtons();
+          }
+        },
+        {
+          text: 'Cancel',
+          color: '#f44336',
+          handler: function() {
+            pendingVote = null;
+            log('Vote cancelled. Vote on team:', {
+              prepend: false
+            });
+            updateActionButtons(); // Refresh buttons to show approve/reject
+          }
+        }
+      ]);
+      return;
+    }
+    
+    // Initial vote (approve/reject)
+    if (isVoting && pendingVote === null) {
+      showActionButtons([
+        {
+          text: 'Approve',
+          color: '#4CAF50',
+          handler: function() {
+            pendingVote = 'y';
+            log('You selected: Approve. Confirm?', {
+              prepend: false,
+              color: '#4CAF50'
+            });
+            updateActionButtons(); // Refresh buttons to show confirm/cancel
+          }
+        },
+        {
+          text: 'Reject',
+          color: '#f44336',
+          handler: function() {
+            pendingVote = 'n';
+            log('You selected: Reject. Confirm?', {
+              prepend: false,
+              color: '#f44336'
+            });
+            updateActionButtons(); // Refresh buttons to show confirm/cancel
+          }
+        }
+      ]);
+      return;
+    }
+    
+    // Assassin guess confirmation
+    if (isAssassinPhase && pendingAssassinGuess !== null) {
+      showActionButtons([
+        {
+          text: 'Confirm Guess',
+          color: '#f44336',
+          handler: function() {
+            socket.emit('submit assassin guess', {
+              guess: pendingAssassinGuess
+            });
+            log('You guessed: ' + pendingAssassinGuess, {
+              prepend: false,
+              color: '#f44336'
+            });
+            pendingAssassinGuess = null;
+            isAssassinPhase = false;
+            hideActionButtons();
+            updatePlayerCircle();
+          }
+        },
+        {
+          text: 'Cancel',
+          color: '#666',
+          handler: function() {
+            pendingAssassinGuess = null;
+            log('Assassin guess cancelled. Click on a good team player name in the circle above to make your guess.', {
+              prepend: false
+            });
+            updatePlayerCircle();
+            hideActionButtons();
+          }
+        }
+      ]);
+      return;
+    }
+    
+    // Team selection confirmation
+    if (isSelectingTeam && username === connectedUsers[0]) {
+      if (selectedTeam.length === requiredTeamSize) {
+        showActionButtons([
+          {
+            text: 'Confirm Team',
+            color: '#4CAF50',
+            handler: function() {
+              socket.emit('confirm team', {
+                team: selectedTeam
+              });
+              
+              log('Team confirmed: ' + selectedTeam.join(', '), {
+                prepend: false
+              });
+              
+              // Reset team selection state
+              isSelectingTeam = false;
+              selectedTeam = [];
+              $('.teamPreview').remove();
+              updatePlayerCircle();
+              hideActionButtons();
+            }
+          },
+          {
+            text: 'Cancel',
+            color: '#f44336',
+            handler: function() {
+              // Cancel team selection - reset state
+              isSelectingTeam = false;
+              selectedTeam = [];
+              $('.teamPreview').remove();
+              updatePlayerCircle();
+              hideActionButtons();
+            }
+          }
+        ]);
+      } else {
+        // Show message that team is incomplete
+        var $message = $('<div class="actionButtonMessage">Select ' + (requiredTeamSize - selectedTeam.length) + ' more player(s)</div>');
+        $actionButtons.empty().append($message);
+        $actionButtons.fadeIn(200);
+      }
+      return;
+    }
+    
+    // If we reach here, no buttons should be shown
+    hideActionButtons();
+  };
+
   // Update the player circle visualization
   const updatePlayerCircle = () => {
     $playerCircleContainer.empty();
@@ -158,6 +429,9 @@ $(function() {
           
           // Update preview
           updateTeamPreview();
+          
+          // Update action buttons
+          updateActionButtons();
         });
       }
       
@@ -188,13 +462,16 @@ $(function() {
             // Immediately disable all click handlers to prevent rapid clicking
             $('.playerCircleItem').off('click').removeClass('clickable').css('cursor', 'default');
             
-            log('You guessed: ' + clickedUser + '. Confirm? ("y"/"n")', {
+            log('You guessed: ' + clickedUser + '. Confirm?', {
               prepend: false,
               color: '#f44336'
             });
             
             // Update player circle to show selection
             updatePlayerCircle();
+            
+            // Show action buttons for confirmation
+            updateActionButtons();
           }
         });
       }
@@ -397,7 +674,7 @@ $(function() {
       selectedTeam = [];
       
       // Send private message to leader
-      log('You are the leader. Select a team of ' + questSize + ' players for Quest ' + questIndex + '. Click on player tiles to select them ("y" to confirm)', {
+      log('You are the leader. Select a team of ' + questSize + ' players for Quest ' + questIndex + '. Click on player tiles to select them, then confirm with the button.', {
         prepend: false
       });
       
@@ -406,6 +683,9 @@ $(function() {
       
       // Show initial preview
       updateTeamPreview();
+      
+      // Show action buttons
+      updateActionButtons();
     }
   };
 
@@ -433,6 +713,21 @@ $(function() {
 
   // Update the role assignment UI
   const updateRoleAssignmentUI = () => {
+    // Save the state of currently focused dropdown before clearing
+    var $focusedSelect = null;
+    var focusedValue = null;
+    var focusedUsername = null;
+    var focusedRoleSetIndex = null;
+    
+    // Check if there's a focused select element
+    var activeElement = document.activeElement;
+    if (activeElement && activeElement.tagName === 'SELECT' && $(activeElement).closest('#playerRoles').length > 0) {
+      $focusedSelect = $(activeElement);
+      focusedValue = $focusedSelect.val();
+      focusedUsername = $focusedSelect.attr('data-username');
+      focusedRoleSetIndex = parseInt($focusedSelect.attr('data-role-set-index'));
+    }
+    
     $playerRoles.empty();
     
     // Create a row for each role set
@@ -507,6 +802,24 @@ $(function() {
         
         $playerItem.append($roleSelect);
         $roleSetRow.append($playerItem);
+        
+        // Restore focus if this was the previously focused dropdown
+        if ($focusedSelect && focusedUsername === user && focusedRoleSetIndex === roleSetIndex) {
+          // Set the value to what it was before (but only if it hasn't changed on the server)
+          // If the server has a different value, use that instead
+          var serverValue = roleSet[user] || '';
+          if (focusedValue === serverValue) {
+            // Value hasn't changed, restore it
+            $roleSelect.val(focusedValue);
+          } else {
+            // Server has a different value, use that (another user changed it)
+            $roleSelect.val(serverValue);
+          }
+          // Restore focus after a brief delay to ensure DOM is ready
+          setTimeout(function() {
+            $roleSelect.focus();
+          }, 0);
+        }
       });
       
       $playerRoles.append($roleSetRow);
@@ -634,7 +947,8 @@ $(function() {
     log(message);
   }
 
-  // Sets the client's username
+
+  // Sets username (no longer handles game actions - those use buttons)
   const setUsername = () => {
     username = cleanInput($usernameInput.val().trim());
 
@@ -642,183 +956,6 @@ $(function() {
     if (username) {
       // Tell the server your username (don't fade out yet - wait for confirmation)
       socket.emit('add user', username);
-    }
-  }
-
-  // Sends a chat message
-  const sendMessage = () => {
-    var message = $inputMessage.val();
-    // Prevent markup from being injected into the message
-    message = cleanInput(message);
-    // if there is a non-empty message and a socket connection
-    if (message && connected) {
-      $inputMessage.val('');
-      var messageLower = message.toLowerCase().trim();
-      
-      // Handle quest vote confirmation
-      if (isQuestVoting && pendingQuestVote !== null) {
-        if (messageLower === 'y') {
-          // Confirm and submit the pending quest vote
-          socket.emit('submit quest vote', {
-            vote: pendingQuestVote
-          });
-          log('You voted: ' + (pendingQuestVote === 'y' ? 'Success' : 'Fail'), {
-            prepend: false,
-            color: pendingQuestVote === 'y' ? '#4CAF50' : '#f44336'
-          });
-          pendingQuestVote = null;
-          isQuestVoting = false;
-          return;
-        } else if (messageLower === 'n') {
-          // Cancel the quest vote, go back to initial quest vote state
-          pendingQuestVote = null;
-          log('Quest vote cancelled. You were selected for quest ' + currentQuestIndex + '. Succeed? ("y"/"n")', {
-            prepend: false
-          });
-          return;
-        } else {
-          // Reject invalid input during quest vote confirmation
-          log('Please respond with "y" or "n"', {
-            prepend: false
-          });
-          return;
-        }
-      }
-      
-      // Handle initial quest vote (succeed/fail)
-      if (isQuestVoting && pendingQuestVote === null) {
-        if (messageLower === 'y' || messageLower === 'n') {
-          // Store the quest vote and request confirmation
-          pendingQuestVote = messageLower;
-          log('You have selected ' + (messageLower === 'y' ? 'Success' : 'Fail') + '. Confirm? ("y"/"n")', {
-            prepend: false,
-            color: messageLower === 'y' ? '#4CAF50' : '#f44336'
-          });
-          return;
-        } else {
-          // Reject invalid input during quest voting
-          log('Please respond with "y" to succeed or "n" to fail', {
-            prepend: false
-          });
-          return;
-        }
-      }
-      
-      // Handle vote confirmation
-      if (isVoting && pendingVote !== null) {
-        if (messageLower === 'y') {
-          // Confirm and submit the pending vote
-          socket.emit('submit vote', {
-            vote: pendingVote
-          });
-          log('You voted: ' + (pendingVote === 'y' ? 'Approve' : 'Reject'), {
-            prepend: false,
-            color: pendingVote === 'y' ? '#4CAF50' : '#f44336'
-          });
-          pendingVote = null;
-          isVoting = false;
-          return;
-        } else if (messageLower === 'n') {
-          // Cancel the vote, go back to initial vote state
-          pendingVote = null;
-          log('Vote cancelled. Vote on team ("y" to approve / "n" to reject)', {
-            prepend: false
-          });
-          return;
-        } else {
-          // Reject invalid input during vote confirmation
-          log('Please respond with "y" or "n"', {
-            prepend: false
-          });
-          return;
-        }
-      }
-      
-      // Handle initial vote (approve/reject)
-      if (isVoting && pendingVote === null) {
-        if (messageLower === 'y' || messageLower === 'n') {
-          // Store the vote and request confirmation
-          pendingVote = messageLower;
-          log('You selected: ' + (messageLower === 'y' ? 'Approve' : 'Reject') + '. Confirm? ("y"/"n")', {
-            prepend: false,
-            color: messageLower === 'y' ? '#4CAF50' : '#f44336'
-          });
-          return;
-        } else {
-          // Reject invalid input during voting
-          log('Please respond with "y" to approve or "n" to reject', {
-            prepend: false
-          });
-          return;
-        }
-      }
-      
-      // Handle assassin guess confirmation
-      if (isAssassinPhase && pendingAssassinGuess !== null) {
-        if (messageLower === 'y') {
-          // Confirm and submit the assassin guess
-          socket.emit('submit assassin guess', {
-            guess: pendingAssassinGuess
-          });
-          log('You guessed: ' + pendingAssassinGuess, {
-            prepend: false,
-            color: '#f44336'
-          });
-          pendingAssassinGuess = null;
-          isAssassinPhase = false;
-          return;
-        } else if (messageLower === 'n') {
-          // Cancel the guess, go back to initial assassin guess state
-          pendingAssassinGuess = null;
-          log('Assassin guess cancelled. Click on a good team player name in the circle above to make your guess.', {
-            prepend: false
-          });
-          // Update player circle to show clickable names again
-          updatePlayerCircle();
-          return;
-        } else {
-          // Reject invalid input during assassin guess confirmation
-          log('Please respond with "y" or "n"', {
-            prepend: false
-          });
-          return;
-        }
-      }
-      
-      // Assassin guess is now handled by clicking on player names, not text input
-      // Only confirmation (y/n) is handled via text input
-      
-      // Handle team selection confirmation
-      if (isSelectingTeam && username === connectedUsers[0] && messageLower === 'y') {
-        if (selectedTeam.length === requiredTeamSize) {
-          // Confirm team selection
-          socket.emit('confirm team', {
-            team: selectedTeam
-          });
-          
-          log('Team confirmed: ' + selectedTeam.join(', '), {
-            prepend: false
-          });
-          
-          // Reset team selection state
-          isSelectingTeam = false;
-          selectedTeam = [];
-          $('.teamPreview').remove();
-          updatePlayerCircle();
-        } else {
-          log('Please select exactly ' + requiredTeamSize + ' players before confirming.', {
-            prepend: false
-          });
-        }
-        return;
-      }
-      
-      addChatMessage({
-        username: username,
-        message: message
-      });
-      // tell server to execute 'new message' and send along one parameter
-      socket.emit('new message', message);
     }
   }
 
@@ -974,39 +1111,24 @@ $(function() {
     return COLORS[index];
   }
 
-  // Keyboard events
+  // Keyboard events (only for username input now)
 
   $window.keydown(event => {
-    // Auto-focus the current input when a key is typed
-    if (!(event.ctrlKey || event.metaKey || event.altKey)) {
-      $currentInput.focus();
+    // Auto-focus the username input when a key is typed (only on login page)
+    if (!(event.ctrlKey || event.metaKey || event.altKey) && !username) {
+      $usernameInput.focus();
     }
-    // When the client hits ENTER on their keyboard
-    if (event.which === 13) {
-      if (username) {
-        sendMessage();
-        socket.emit('stop typing');
-        typing = false;
-      } else {
-        setUsername();
-      }
+    // When the client hits ENTER on their keyboard (only for username)
+    if (event.which === 13 && !username) {
+      setUsername();
     }
-  });
-
-  $inputMessage.on('input', () => {
-    updateTyping();
   });
 
   // Click events
 
   // Focus input when clicking anywhere on login page
   $loginPage.click(() => {
-    $currentInput.focus();
-  });
-
-  // Focus input when clicking on the message input's border
-  $inputMessage.click(() => {
-    $inputMessage.focus();
+    $usernameInput.focus();
   });
 
   // Collapse button handler
@@ -1047,7 +1169,6 @@ $(function() {
     $loginPage.fadeOut();
     $chatPage.css('display', 'flex');
     $loginPage.off('click');
-    $currentInput = $inputMessage.focus();
     
     // Display the welcome message
     var message = "Welcome, " + username;
@@ -1219,6 +1340,8 @@ $(function() {
         selectedTeam = [];
         $('.teamPreview').remove();
         updatePlayerCircle();
+        // Don't hide buttons here - let request vote handle showing voting buttons
+        // This prevents race condition where buttons are hidden then immediately shown
       }
     }
   });
@@ -1247,26 +1370,30 @@ $(function() {
       log('Mission ' + currentQuestIndex + ' Vote ' + currentVoteTrack, {
         prepend: false
       });
-      log('Vote on team: ' + data.team.join(', ') + ' ("y"/"n")', {
+      log('Vote on team: ' + data.team.join(', '), {
         prepend: false
       });
       // Update UI to reflect new vote track
       initializeVoteTrack();
       updatePlayerCircle();
+      // Show action buttons
+      updateActionButtons();
     }
   });
 
   // Handle quest vote request
   socket.on('request quest vote', (data) => {
     if (data.questIndex && data.team) {
-      // Check if current user is on the team
-      if (data.team.indexOf(username) !== -1) {
-        isQuestVoting = true;
-        pendingQuestVote = null; // Reset any pending quest vote
-        log('You were selected for quest ' + data.questIndex + '. Succeed? ("y"/"n")', {
-          prepend: false
-        });
-      }
+        // Check if current user is on the team
+        if (data.team.indexOf(username) !== -1) {
+          isQuestVoting = true;
+          pendingQuestVote = null; // Reset any pending quest vote
+          log('You were selected for quest ' + data.questIndex + '. Succeed or Fail?', {
+            prepend: false
+          });
+          // Show action buttons
+          updateActionButtons();
+        }
     }
   });
 
@@ -1276,6 +1403,7 @@ $(function() {
       // Reset voting state
       isVoting = false;
       pendingVote = null;
+      hideActionButtons();
       
       // Update vote track from server
       if (data.voteTrack !== undefined) {
@@ -1339,6 +1467,7 @@ $(function() {
       // Reset quest voting state
       isQuestVoting = false;
       pendingQuestVote = null;
+      hideActionButtons();
       
       // Update vote track from server (should be reset to 1)
       if (data.voteTrack !== undefined) {
@@ -1440,6 +1569,7 @@ $(function() {
     
     // Update player circle to make names clickable
     updatePlayerCircle();
+    // Don't show buttons yet - wait for player selection
   });
   
   // Handle partial assassin guess (for Tristan/Isolde when one is guessed correctly)
@@ -1456,6 +1586,7 @@ $(function() {
     
     // Update player circle to allow another selection
     updatePlayerCircle();
+    hideActionButtons();
   });
   
   // Handle assassin guess error
@@ -1469,6 +1600,7 @@ $(function() {
     // Reset guess to allow trying again
     pendingAssassinGuess = null;
     updatePlayerCircle();
+    hideActionButtons();
   });
 
   // Handle waiting status updates
@@ -1488,6 +1620,7 @@ $(function() {
     isAssassinPhase = false;
     pendingAssassinGuess = null;
     goodTeamPlayers = [];
+    hideActionButtons();
     
     // Clear quest results and reset flag
     questResults = {};
