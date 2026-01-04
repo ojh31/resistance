@@ -5,6 +5,7 @@ var path = require('path');
 var server = require('http').createServer(app);
 var io = require('socket.io')(server);
 var port = process.env.PORT || 3000;
+var { execSync } = require('child_process');
 
 server.listen(port, () => {
   console.log('Server listening at port %d', port);
@@ -12,6 +13,16 @@ server.listen(port, () => {
 
 // Routing
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Endpoint to get git commit SHA
+app.get('/api/commit-sha', (req, res) => {
+  try {
+    const commitSha = execSync('git rev-parse --short HEAD', { encoding: 'utf-8' }).trim();
+    res.json({ commitSha: commitSha });
+  } catch (error) {
+    res.json({ commitSha: 'unknown' });
+  }
+});
 
 // Chatroom
 
