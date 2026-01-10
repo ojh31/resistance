@@ -2113,14 +2113,4 @@ $(function() {
     }
   });
 
-  // Fetch and display commit SHA
-  fetch('/api/commit-sha')
-    .then(response => response.json())
-    .then(data => {
-      $('#commitSha').text(data.commitSha);
-    })
-    .catch(error => {
-      $('#commitSha').text('unknown');
-    });
-
 });
