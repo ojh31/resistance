@@ -665,15 +665,3 @@ ul {
   font-weight: 600;
   text-align: center;
 }
-
-/* Commit SHA */
-.commit-sha {
-  position: fixed;
-  bottom: 5px;
-  left: 5px;
-  font-size: 10px;
-  color: #999;
-  font-family: monospace;
-  z-index: 1000;
-  pointer-events: none;
-}
