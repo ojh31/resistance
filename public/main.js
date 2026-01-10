@@ -99,6 +99,29 @@ $(function() {
   var pendingAssassinGuess = null; // Stores the assassin guess waiting for confirmation
   var goodTeamPlayers = []; // List of good team players (only these can be guessed)
 
+  // Personal rename mappings: {originalName: renamedName}
+  var personalRenames = {};
+  
+  // Load personal renames from localStorage on page load
+  try {
+    var storedRenames = localStorage.getItem('personalRenames');
+    if (storedRenames) {
+      personalRenames = JSON.parse(storedRenames);
+    }
+  } catch (e) {
+    // If localStorage fails, start with empty object
+    personalRenames = {};
+  }
+  
+  // Function to save personal renames to localStorage
+  var savePersonalRenames = function() {
+    try {
+      localStorage.setItem('personalRenames', JSON.stringify(personalRenames));
+    } catch (e) {
+      // If localStorage fails, silently continue
+    }
+  };
+
   // Action buttons management
   const showActionButtons = (buttons) => {
     // Stop any ongoing animations and immediately show
@@ -402,9 +425,12 @@ $(function() {
       var x = centerX + radius * Math.cos(angle) - 30; // -30 to center the 60px item
       var y = centerY + radius * Math.sin(angle) - 30;
       
+      // Apply personal rename for display
+      var displayName = applyPersonalRename(user);
+      
       // Create player item
       var $playerItem = $('<div class="playerCircleItem"></div>')
-        .text(user)
+        .text(displayName)
         .css({
           left: x + 'px',
           top: y + 'px',
@@ -412,6 +438,13 @@ $(function() {
           color: '#fff'
         })
         .data('username', user);
+      
+      // Add right-click handler for renaming
+      $playerItem.on('contextmenu', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        showRenamePrompt(user, displayName);
+      });
       
       // Make clickable if user is leader and team selection is active
       if (isSelectingTeam && username === connectedUsers[0]) {
@@ -556,13 +589,23 @@ $(function() {
     if (voteHistory[questIndex] && voteHistory[questIndex].length > 0) {
       voteHistory[questIndex].forEach(function(vote, index) {
         tooltipParts.push('Vote ' + vote.voteTrack + ':');
-        tooltipParts.push('  Team: ' + (vote.team.length > 0 ? vote.team.join(', ') : 'None'));
-        tooltipParts.push('  Leader: ' + (vote.leader || 'None'));
+        // Apply personal renames to team members
+        var renamedTeam = vote.team.length > 0 ? vote.team.map(function(member) {
+          return applyPersonalRename(member);
+        }).join(', ') : 'None';
+        tooltipParts.push('  Team: ' + renamedTeam);
+        tooltipParts.push('  Leader: ' + (vote.leader ? applyPersonalRename(vote.leader) : 'None'));
         if (vote.approveVoters.length > 0) {
-          tooltipParts.push('  Approve: ' + vote.approveVoters.join(', ') + ' (' + vote.approveCount + ')');
+          var renamedApproveVoters = vote.approveVoters.map(function(voter) {
+            return applyPersonalRename(voter);
+          }).join(', ');
+          tooltipParts.push('  Approve: ' + renamedApproveVoters + ' (' + vote.approveCount + ')');
         }
         if (vote.rejectVoters.length > 0) {
-          tooltipParts.push('  Reject: ' + vote.rejectVoters.join(', ') + ' (' + vote.rejectCount + ')');
+          var renamedRejectVoters = vote.rejectVoters.map(function(voter) {
+            return applyPersonalRename(voter);
+          }).join(', ');
+          tooltipParts.push('  Reject: ' + renamedRejectVoters + ' (' + vote.rejectCount + ')');
         }
         tooltipParts.push('  Result: ' + (vote.approved ? 'APPROVED' : 'REJECTED'));
       });
@@ -577,7 +620,11 @@ $(function() {
       } else {
         tooltipParts.push('Mission Result:');
       }
-      tooltipParts.push('  Team: ' + (mission.team.length > 0 ? mission.team.join(', ') : 'None'));
+      // Apply personal renames to mission team members
+      var renamedMissionTeam = mission.team.length > 0 ? mission.team.map(function(member) {
+        return applyPersonalRename(member);
+      }).join(', ') : 'None';
+      tooltipParts.push('  Team: ' + renamedMissionTeam);
       tooltipParts.push('  Success: ' + mission.successCount);
       tooltipParts.push('  Fail: ' + mission.failCount);
       tooltipParts.push('  Outcome: ' + (mission.questSucceeded ? 'SUCCESS' : 'FAIL'));
@@ -679,13 +726,23 @@ $(function() {
     }
     
     var tooltipParts = [];
-    tooltipParts.push('Team: ' + (vote.team.length > 0 ? vote.team.join(', ') : 'None'));
-    tooltipParts.push('Leader: ' + (vote.leader || 'None'));
+    // Apply personal renames to team members
+    var renamedTeam = vote.team.length > 0 ? vote.team.map(function(member) {
+      return applyPersonalRename(member);
+    }).join(', ') : 'None';
+    tooltipParts.push('Team: ' + renamedTeam);
+    tooltipParts.push('Leader: ' + (vote.leader ? applyPersonalRename(vote.leader) : 'None'));
     if (vote.approveVoters.length > 0) {
-      tooltipParts.push('Approve: ' + vote.approveVoters.join(', ') + ' (' + vote.approveCount + ')');
+      var renamedApproveVoters = vote.approveVoters.map(function(voter) {
+        return applyPersonalRename(voter);
+      }).join(', ');
+      tooltipParts.push('Approve: ' + renamedApproveVoters + ' (' + vote.approveCount + ')');
     }
     if (vote.rejectVoters.length > 0) {
-      tooltipParts.push('Reject: ' + vote.rejectVoters.join(', ') + ' (' + vote.rejectCount + ')');
+      var renamedRejectVoters = vote.rejectVoters.map(function(voter) {
+        return applyPersonalRename(voter);
+      }).join(', ');
+      tooltipParts.push('Reject: ' + renamedRejectVoters + ' (' + vote.rejectCount + ')');
     }
     tooltipParts.push('Result: ' + (vote.approved ? 'APPROVED' : 'REJECTED'));
     
@@ -821,7 +878,11 @@ $(function() {
     if (selectedTeam.length === 0) {
       previewText += 'None';
     } else {
-      previewText += selectedTeam.join(', ');
+      // Apply personal renames to team member names
+      var renamedTeam = selectedTeam.map(function(member) {
+        return applyPersonalRename(member);
+      });
+      previewText += renamedTeam.join(', ');
     }
     
     var $preview = $('<li class="log teamPreview">' + previewText + '</li>');
@@ -1078,9 +1139,26 @@ $(function() {
     }
   }
 
+  // Helper to apply personal renames to a string that may contain usernames
+  const applyRenamesToString = (str) => {
+    if (!str || typeof str !== 'string') {
+      return str;
+    }
+    var result = str;
+    // Replace all usernames in the string with their renamed versions
+    Object.keys(personalRenames).forEach(function(originalName) {
+      // Use word boundaries to match whole usernames only
+      var regex = new RegExp('\\b' + originalName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'g');
+      result = result.replace(regex, personalRenames[originalName]);
+    });
+    return result;
+  }
+
   // Log a message
     const log = (message, options) => {
-    var $el = $('<li>').addClass('log').text(message);
+    // Apply personal renames to the message string
+    var processedMessage = applyRenamesToString(message);
+    var $el = $('<li>').addClass('log').text(processedMessage);
     // Apply color if specified in options
     if (options && options.color) {
       $el.css('color', options.color);
@@ -1094,7 +1172,11 @@ $(function() {
     $('.waiting-status-message').remove();
     
     if (data.waitingOn && data.waitingOn.length > 0) {
-      var message = 'Waiting on ' + data.waitingOn.join(', ');
+      // Apply personal renames to waiting players
+      var renamedWaiting = data.waitingOn.map(function(player) {
+        return applyPersonalRename(player);
+      });
+      var message = 'Waiting on ' + renamedWaiting.join(', ');
       
       // Add context-specific text
       if (data.context === 'vote') {
@@ -1126,8 +1208,9 @@ $(function() {
       $typingMessages.remove();
     }
 
+    var displayUsername = applyPersonalRename(data.username);
     var $usernameDiv = $('<span class="username"/>')
-      .text(data.username)
+      .text(displayUsername)
       .css('color', getUsernameColor(data.username));
     var $messageBodyDiv = $('<span class="messageBody">')
       .text(data.message);
@@ -1228,6 +1311,216 @@ $(function() {
     // Calculate color
     var index = Math.abs(hash % COLORS.length);
     return COLORS[index];
+  }
+
+  // Apply personal rename override if it exists
+  const applyPersonalRename = (originalUsername) => {
+    if (!originalUsername) {
+      return originalUsername;
+    }
+    // Check if we have a personal rename for this username
+    if (personalRenames[originalUsername]) {
+      return personalRenames[originalUsername];
+    }
+    return originalUsername;
+  }
+
+  // Show rename prompt dialog
+  const showRenamePrompt = (originalUsername, currentDisplayName) => {
+    // Remove any existing rename prompt
+    $('.renamePrompt').remove();
+    
+    // Check if there's already a rename for this user
+    var hasRename = personalRenames[originalUsername] !== undefined;
+    var currentRename = hasRename ? personalRenames[originalUsername] : '';
+    
+    // Create modal overlay
+    var $overlay = $('<div class="renamePromptOverlay"></div>')
+      .css({
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        zIndex: 10000,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      });
+    
+    // Create dialog
+    var $dialog = $('<div class="renamePrompt"></div>')
+      .css({
+        backgroundColor: '#fff',
+        padding: '20px',
+        borderRadius: '8px',
+        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)',
+        minWidth: '300px',
+        maxWidth: '400px'
+      });
+    
+    // Title
+    var $title = $('<h3></h3>')
+      .text('Rename Player')
+      .css({
+        margin: '0 0 15px 0',
+        fontSize: '18px',
+        fontWeight: 'bold'
+      });
+    $dialog.append($title);
+    
+    // Original name hint
+    var $originalHint = $('<div></div>')
+      .text('Original name: ' + originalUsername)
+      .css({
+        fontSize: '12px',
+        color: '#666',
+        marginBottom: '10px'
+      });
+    $dialog.append($originalHint);
+    
+    // Input field
+    var $input = $('<input type="text" class="renameInput">')
+      .val(currentDisplayName)
+      .css({
+        width: '100%',
+        padding: '8px',
+        fontSize: '14px',
+        border: '1px solid #ddd',
+        borderRadius: '4px',
+        marginBottom: '15px',
+        boxSizing: 'border-box'
+      })
+      .attr('maxlength', '30');
+    $dialog.append($input);
+    
+    // Error message area
+    var $errorMsg = $('<div class="renameError"></div>')
+      .css({
+        color: '#f44336',
+        fontSize: '12px',
+        marginBottom: '10px',
+        minHeight: '16px',
+        display: 'none'
+      });
+    $dialog.append($errorMsg);
+    
+    // Button container
+    var $buttonContainer = $('<div></div>')
+      .css({
+        display: 'flex',
+        gap: '10px',
+        justifyContent: 'flex-end'
+      });
+    
+    // Remove button (only if rename exists)
+    if (hasRename) {
+      var $removeBtn = $('<button class="renameRemoveBtn">Remove</button>')
+        .css({
+          padding: '8px 16px',
+          fontSize: '14px',
+          backgroundColor: '#f44336',
+          color: '#fff',
+          border: 'none',
+          borderRadius: '4px',
+          cursor: 'pointer'
+        })
+        .on('click', function() {
+          delete personalRenames[originalUsername];
+          savePersonalRenames();
+          refreshAllUsernameDisplays();
+          $overlay.remove();
+        });
+      $buttonContainer.append($removeBtn);
+    }
+    
+    // Cancel button
+    var $cancelBtn = $('<button class="renameCancelBtn">Cancel</button>')
+      .css({
+        padding: '8px 16px',
+        fontSize: '14px',
+        backgroundColor: '#ccc',
+        color: '#000',
+        border: 'none',
+        borderRadius: '4px',
+        cursor: 'pointer'
+      })
+      .on('click', function() {
+        $overlay.remove();
+      });
+    $buttonContainer.append($cancelBtn);
+    
+    // Save button
+    var $saveBtn = $('<button class="renameSaveBtn">Save</button>')
+      .css({
+        padding: '8px 16px',
+        fontSize: '14px',
+        backgroundColor: '#4CAF50',
+        color: '#fff',
+        border: 'none',
+        borderRadius: '4px',
+        cursor: 'pointer'
+      })
+      .on('click', function() {
+        var newName = $input.val().trim();
+        
+        // Validation
+        if (newName === '') {
+          $errorMsg.text('Name cannot be empty').show();
+          return;
+        }
+        
+        if (newName.length > 30) {
+          $errorMsg.text('Name must be 30 characters or less').show();
+          return;
+        }
+        
+        // Check if new name matches original (effectively removing rename)
+        if (newName === originalUsername) {
+          delete personalRenames[originalUsername];
+        } else {
+          personalRenames[originalUsername] = newName;
+        }
+        
+        savePersonalRenames();
+        refreshAllUsernameDisplays();
+        $overlay.remove();
+      });
+    $buttonContainer.append($saveBtn);
+    
+    $dialog.append($buttonContainer);
+    $overlay.append($dialog);
+    $('body').append($overlay);
+    
+    // Focus input and select all text
+    $input.focus().select();
+    
+    // Handle Enter key
+    $input.on('keydown', function(e) {
+      if (e.which === 13) { // Enter
+        e.preventDefault();
+        $saveBtn.click();
+      } else if (e.which === 27) { // Escape
+        e.preventDefault();
+        $cancelBtn.click();
+      }
+    });
+    
+    // Close on overlay click
+    $overlay.on('click', function(e) {
+      if ($(e.target).hasClass('renamePromptOverlay')) {
+        $overlay.remove();
+      }
+    });
+  }
+  
+  // Refresh all UI elements that display usernames
+  const refreshAllUsernameDisplays = () => {
+    updatePlayerCircle();
+    updateRoleAssignmentUI();
+    // Note: Chat messages and log messages are historical and won't be updated
+    // But new messages will use the renamed version
   }
 
   // Keyboard events (only for username input now)
