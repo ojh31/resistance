@@ -891,22 +891,36 @@ $(function() {
     });
   };
 
+  // Track open dropdowns to prevent interruption during collaboration
+  var openDropdowns = {}; // {username_roleSetIndex: true}
+  
   // Update the role assignment UI
   const updateRoleAssignmentUI = () => {
-    // Save the state of currently focused dropdown before clearing
-    var $focusedSelect = null;
-    var focusedValue = null;
-    var focusedUsername = null;
-    var focusedRoleSetIndex = null;
+    // Save the state of all open/focused dropdowns before clearing
+    var savedDropdownStates = {};
+    var $allSelects = $('#playerRoles select');
     
-    // Check if there's a focused select element
-    var activeElement = document.activeElement;
-    if (activeElement && activeElement.tagName === 'SELECT' && $(activeElement).closest('#playerRoles').length > 0) {
-      $focusedSelect = $(activeElement);
-      focusedValue = $focusedSelect.val();
-      focusedUsername = $focusedSelect.attr('data-username');
-      focusedRoleSetIndex = parseInt($focusedSelect.attr('data-role-set-index'));
-    }
+    $allSelects.each(function() {
+      var $select = $(this);
+      var username = $select.attr('data-username');
+      var roleSetIndex = parseInt($select.attr('data-role-set-index'));
+      var key = username + '_' + roleSetIndex;
+      
+      // Check if this dropdown is currently open (focused or has mouse over)
+      var isFocused = document.activeElement === this[0];
+      var isOpen = isFocused || openDropdowns[key];
+      
+      if (isOpen) {
+        savedDropdownStates[key] = {
+          username: username,
+          roleSetIndex: roleSetIndex,
+          value: $select.val(),
+          isFocused: isFocused
+        };
+        // Keep it marked as open
+        openDropdowns[key] = true;
+      }
+    });
     
     $playerRoles.empty();
     
@@ -959,6 +973,25 @@ $(function() {
           $roleSelect.attr('title', roleDescriptions[initialRole]);
         }
         
+        // Track dropdown open/close state
+        var dropdownKey = user + '_' + roleSetIndex;
+        
+        // Handle dropdown focus - mark as open
+        $roleSelect.on('focus', function() {
+          openDropdowns[dropdownKey] = true;
+        });
+        
+        // Handle dropdown blur - mark as closed after a short delay
+        // This delay allows for clicks on options to register
+        $roleSelect.on('blur', function() {
+          setTimeout(function() {
+            // Only mark as closed if it's not focused again
+            if (document.activeElement !== $roleSelect[0]) {
+              openDropdowns[dropdownKey] = false;
+            }
+          }, 200);
+        });
+        
         // Handle dropdown change - sync with server
         $roleSelect.on('change', function() {
           var selectedRole = $(this).val();
@@ -983,22 +1016,40 @@ $(function() {
         $playerItem.append($roleSelect);
         $roleSetRow.append($playerItem);
         
-        // Restore focus if this was the previously focused dropdown
-        if ($focusedSelect && focusedUsername === user && focusedRoleSetIndex === roleSetIndex) {
-          // Set the value to what it was before (but only if it hasn't changed on the server)
-          // If the server has a different value, use that instead
+        // Restore state if this dropdown was previously open
+        var savedState = savedDropdownStates[dropdownKey];
+        if (savedState) {
           var serverValue = roleSet[user] || '';
-          if (focusedValue === serverValue) {
-            // Value hasn't changed, restore it
-            $roleSelect.val(focusedValue);
+          
+          // If the dropdown was open, preserve its value unless server changed it
+          if (savedState.isFocused) {
+            // If server value matches what user was selecting, keep it
+            // Otherwise, use server value (another user changed it)
+            if (savedState.value === serverValue) {
+              $roleSelect.val(savedState.value);
+            } else {
+              // Server value changed - update it but try to preserve focus
+              $roleSelect.val(serverValue);
+            }
+            // Restore focus after a brief delay to ensure DOM is ready
+            setTimeout(function() {
+              $roleSelect.focus();
+            }, 0);
+          } else if (openDropdowns[dropdownKey]) {
+            // Dropdown was marked as open but not focused - preserve value
+            if (savedState.value === serverValue) {
+              $roleSelect.val(savedState.value);
+            } else {
+              $roleSelect.val(serverValue);
+            }
           } else {
-            // Server has a different value, use that (another user changed it)
+            // Dropdown wasn't open - use server value
             $roleSelect.val(serverValue);
           }
-          // Restore focus after a brief delay to ensure DOM is ready
-          setTimeout(function() {
-            $roleSelect.focus();
-          }, 0);
+        } else {
+          // No saved state - use server value
+          var serverValue = roleSet[user] || '';
+          $roleSelect.val(serverValue);
         }
       });
       
@@ -1702,7 +1753,23 @@ $(function() {
 
   // Whenever the server emits 'user list', update the connected users
   socket.on('user list', (data) => {
+    var previousUsers = connectedUsers.slice(); // Copy previous user list
     connectedUsers = data.users || [];
+    
+    // Clear open dropdown tracking for users who disconnected
+    // This prevents stale state from affecting the UI
+    var currentUserSet = {};
+    connectedUsers.forEach(function(user) {
+      currentUserSet[user] = true;
+    });
+    
+    // Remove tracking for users who are no longer connected
+    Object.keys(openDropdowns).forEach(function(key) {
+      var username = key.split('_')[0];
+      if (!currentUserSet[username]) {
+        delete openDropdowns[key];
+      }
+    });
     
     // Update vote track and quest index from server if provided
     if (data.voteTrack !== undefined) {
