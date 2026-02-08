@@ -652,9 +652,6 @@ io.on('connection', (socket) => {
         // Increment vote track if rejected
         if (!approved) {
           currentVoteTrack++;
-          if (currentVoteTrack > 5) {
-            currentVoteTrack = 5; // Cap at 5
-          }
         }
         
         // Broadcast result with individual votes
@@ -670,11 +667,16 @@ io.on('connection', (socket) => {
         });
         
         // Check if vote track reached 5 - evil team wins
-        if (currentVoteTrack >= 5 && !approved) {
+        if (currentVoteTrack > 5 && !approved) {
           io.emit('game over', {
             winner: 'evil',
             reason: 'Vote track reached 5. Spies win!'
           });
+
+          // Clear current vote and stop processing
+          currentVote = null;
+          emitWaitingStatus();
+          return;
         }
         
         // If approved, start quest voting instead of immediately proceeding
