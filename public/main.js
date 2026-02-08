@@ -1950,16 +1950,16 @@ $(function() {
         rotateLeader();
         
         // If vote track hasn't reached 5, request new team selection
-        if (currentVoteTrack <= 5) {
+        if (currentVoteTrack > 5) {
+          log('Vote track reached 5. Game over - spies win!', {
+            prepend: false
+          });
+        } else {
           setTimeout(function() {
             socket.emit('start team selection', {
               questIndex: currentQuestIndex
             });
           }, 1000);
-        } else {
-          log('Vote track reached 5. Game over - spies win!', {
-            prepend: false
-          });
         }
       }
       
