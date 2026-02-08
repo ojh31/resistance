@@ -2,9 +2,9 @@ $(function() {
   var FADE_TIME = 150; // ms
   var TYPING_TIMER_LENGTH = 400; // ms
   var COLORS = [
-    '#e21400', '#91580f', '#f8a700', '#f78b00',
-    '#58dc00', '#287b00', '#a8f07a', '#4ae8c4',
-    '#3b88eb', '#3824aa', '#a700ff', '#d300e7'
+    '#e6194b', '#3cb44b', '#4363d8', '#f58231',
+    '#911eb4', '#42d4f4', '#f032e6', '#bfef45',
+    '#e6beff', '#469990'
   ];
 
   // Initialize variables
